@@ -84,14 +84,14 @@ async function main() {
 
   // Create subjects
   const subjects = await Promise.all([
-    prisma.subject.create({ data: { name: "Mathématiques", code: "MATH", coefficient: 4, description: "Mathématiques" } }),
-    prisma.subject.create({ data: { name: "Français", code: "FRAN", coefficient: 3, description: "Français" } }),
-    prisma.subject.create({ data: { name: "Anglais", code: "ANGL", coefficient: 2, description: "Anglais" } }),
-    prisma.subject.create({ data: { name: "Histoire-Géographie", code: "HIST", coefficient: 2, description: "Histoire-Géographie" } }),
-    prisma.subject.create({ data: { name: "Physique-Chimie", code: "PHYC", coefficient: 3, description: "Physique-Chimie" } }),
-    prisma.subject.create({ data: { name: "SVT", code: "SVT", coefficient: 2, description: "Sciences de la Vie et de la Terre" } }),
-    prisma.subject.create({ data: { name: "Informatique", code: "INFO", coefficient: 2, description: "Informatique" } }),
-    prisma.subject.create({ data: { name: "EPS", code: "EPS", coefficient: 1, description: "Éducation Physique et Sportive" } }),
+    prisma.subject.create({ data: { name: "Mathématiques", code: "MATH", description: "Mathématiques" } }),
+    prisma.subject.create({ data: { name: "Français", code: "FRAN", description: "Français" } }),
+    prisma.subject.create({ data: { name: "Anglais", code: "ANGL", description: "Anglais" } }),
+    prisma.subject.create({ data: { name: "Histoire-Géographie", code: "HIST", description: "Histoire-Géographie" } }),
+    prisma.subject.create({ data: { name: "Physique-Chimie", code: "PHYC", description: "Physique-Chimie" } }),
+    prisma.subject.create({ data: { name: "SVT", code: "SVT", description: "Sciences de la Vie et de la Terre" } }),
+    prisma.subject.create({ data: { name: "Informatique", code: "INFO", description: "Informatique" } }),
+    prisma.subject.create({ data: { name: "EPS", code: "EPS", description: "Éducation Physique et Sportive" } }),
   ]);
 
   // Create classes
@@ -157,11 +157,24 @@ async function main() {
     teachers.push(teacher);
   }
 
-  // Assign subjects to classes
+  // Assign subjects to classes with coefficients per class level
+  // Coefficients vary: Collège < Lycée, and by subject importance
+  const coefficientMap: Record<string, Record<string, number>> = {
+    // Collège: coefficients généralement plus bas
+    "Collège": { MATH: 4, FRAN: 4, ANGL: 3, HIST: 3, PHYC: 2, SVT: 2, INFO: 1, EPS: 1 },
+    // Lycée: coefficients plus élevés pour les matières principales
+    "Lycée":   { MATH: 7, FRAN: 5, ANGL: 4, HIST: 3, PHYC: 5, SVT: 4, INFO: 3, EPS: 1 },
+  };
+
   for (const cls of classes) {
+    const coeffs = coefficientMap[cls.level] || coefficientMap["Collège"];
     for (const sub of subjects) {
       await prisma.classSubject.create({
-        data: { classId: cls.id, subjectId: sub.id },
+        data: {
+          classId: cls.id,
+          subjectId: sub.id,
+          coefficient: coeffs[sub.code] || 1,
+        },
       });
     }
   }
@@ -259,6 +272,12 @@ async function main() {
     for (const sub of subjects.slice(0, 5)) {
       for (const evalType of evalTypes) {
         const score = Math.floor(Math.random() * 15) + 5;
+        const studentClassIndex = studentData[students.indexOf(student)]?.classIndex ?? 0;
+        const cls = classes[studentClassIndex];
+        // Look up coefficient from ClassSubject
+        const classSubject = await prisma.classSubject.findUnique({
+          where: { classId_subjectId: { classId: cls.id, subjectId: sub.id } },
+        });
         await prisma.grade.create({
           data: {
             studentId: student.id,
@@ -266,11 +285,11 @@ async function main() {
             teacherId: teachers[0].id,
             schoolYearId: schoolYear.id,
             termId: term1.id,
-            classId: classes[studentData[students.indexOf(student)]?.classIndex ?? 0].id,
+            classId: cls.id,
             evaluationType: evalType as any,
             score,
             maxScore: 20,
-            coefficient: sub.coefficient,
+            coefficient: classSubject?.coefficient || 1,
             evaluationName: `${evalType} ${sub.name}`,
           },
         });

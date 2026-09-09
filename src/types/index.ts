@@ -176,7 +176,6 @@ export interface Subject {
   name: string;
   code: string;
   description?: string | null;
-  coefficient: number;
   teacherSubjects?: TeacherSubject[];
   classSubjects?: ClassSubject[];
   grades?: Grade[];
@@ -206,6 +205,7 @@ export interface ClassSubject {
   id: string;
   classId: string;
   subjectId: string;
+  coefficient: number;
   class?: Class;
   subject?: Subject;
   createdAt: string;
@@ -247,6 +247,7 @@ export interface Grade {
   schoolYear?: SchoolYear;
   term?: Term;
   class?: Class;
+  classSubject?: ClassSubject;
   createdAt: string;
   updatedAt: string;
 }

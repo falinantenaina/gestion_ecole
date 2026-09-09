@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, Loader2 } from "lucide-react";
-import type { Class, SchoolYear } from "@/types";
+import type { Class, SchoolYear, Subject } from "@/types";
 
 interface ClassModalProps {
   isOpen: boolean;
@@ -28,16 +28,27 @@ export default function ClassModal({
     description: "",
   });
 
+  const [classSubjects, setClassSubjects] = useState<
+    { subjectId: string; coefficient: string }[]
+  >([]);
+
   const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
+  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
-    fetch("/api/school-years")
-      .then((res) => res.json())
-      .then((data) => setSchoolYears(data.data || []))
-      .catch(() => setSchoolYears([]));
+    Promise.all([
+      fetch("/api/school-years")
+        .then((res) => res.json())
+        .then((data) => setSchoolYears(data.data || []))
+        .catch(() => setSchoolYears([])),
+      fetch("/api/matieres?limit=500")
+        .then((res) => res.json())
+        .then((data) => setAllSubjects(data.data || []))
+        .catch(() => setAllSubjects([])),
+    ]);
   }, []);
 
   useEffect(() => {
@@ -50,6 +61,16 @@ export default function ClassModal({
         schoolYearId: classe.schoolYearId || "",
         description: classe.description || "",
       });
+      if (classe.subjects && classe.subjects.length > 0) {
+        setClassSubjects(
+          classe.subjects.map((cs) => ({
+            subjectId: cs.subjectId,
+            coefficient: String(cs.coefficient ?? 1),
+          }))
+        );
+      } else {
+        setClassSubjects([]);
+      }
     } else {
       const currentYear = schoolYears.find((sy) => sy.isCurrent);
       setFormData({
@@ -60,6 +81,7 @@ export default function ClassModal({
         schoolYearId: currentYear?.id || "",
         description: "",
       });
+      setClassSubjects([]);
     }
     setErrors({});
     setSubmitError("");
@@ -106,6 +128,12 @@ export default function ClassModal({
         capacity: formData.capacity ? Number(formData.capacity) : 40,
         schoolYearId: formData.schoolYearId,
         description: formData.description.trim() || null,
+        subjects: classSubjects
+          .filter((cs) => cs.subjectId)
+          .map((cs) => ({
+            subjectId: cs.subjectId,
+            coefficient: Number(cs.coefficient) || 1,
+          })),
       };
 
       const res = await fetch(url, {
@@ -145,6 +173,24 @@ export default function ClassModal({
         return next;
       });
     }
+  }
+
+  function addSubjectRow() {
+    setClassSubjects((prev) => [...prev, { subjectId: "", coefficient: "1" }]);
+  }
+
+  function removeSubjectRow(index: number) {
+    setClassSubjects((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateSubjectRow(
+    index: number,
+    field: "subjectId" | "coefficient",
+    value: string
+  ) {
+    setClassSubjects((prev) =>
+      prev.map((cs, i) => (i === index ? { ...cs, [field]: value } : cs))
+    );
   }
 
   if (!isOpen) return null;
@@ -286,6 +332,65 @@ export default function ClassModal({
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Matières & Coefficients
+              </label>
+              <button
+                type="button"
+                onClick={addSubjectRow}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                + Ajouter
+              </button>
+            </div>
+            {classSubjects.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">
+                Aucune matière assignée. Cliquez sur "+ Ajouter" pour commencer.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {classSubjects.map((cs, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <select
+                      value={cs.subjectId}
+                      onChange={(e) =>
+                        updateSubjectRow(index, "subjectId", e.target.value)
+                      }
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Sélectionner...</option>
+                      {allSubjects.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.code})
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      value={cs.coefficient}
+                      onChange={(e) =>
+                        updateSubjectRow(index, "coefficient", e.target.value)
+                      }
+                      min="0.5"
+                      step="0.5"
+                      placeholder="Coeff."
+                      className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeSubjectRow(index)}
+                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">

@@ -53,7 +53,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, level, section, capacity, description } = body;
+    const { name, level, section, capacity, description, subjects } = body;
 
     const existingClass = await prisma.class.findUnique({ where: { id } });
     if (!existingClass) {
@@ -72,16 +72,30 @@ export async function PUT(
       }
     }
 
+    const updateData: Record<string, unknown> = {
+      ...(name && { name }),
+      ...(level && { level }),
+      ...(section !== undefined && { section }),
+      ...(capacity && { capacity }),
+      ...(description !== undefined && { description }),
+    };
+
+    if (Array.isArray(subjects)) {
+      await prisma.classSubject.deleteMany({ where: { classId: id } });
+      if (subjects.length > 0) {
+        updateData.subjects = {
+          create: subjects.map((s: { subjectId: string; coefficient?: number }) => ({
+            subjectId: s.subjectId,
+            coefficient: s.coefficient ?? 1,
+          })),
+        };
+      }
+    }
+
     const result = await prisma.class.update({
       where: { id },
-      data: {
-        ...(name && { name }),
-        ...(level && { level }),
-        ...(section !== undefined && { section }),
-        ...(capacity && { capacity }),
-        ...(description !== undefined && { description }),
-      },
-      include: { schoolYear: true },
+      data: updateData,
+      include: { schoolYear: true, subjects: { include: { subject: true } } },
     });
 
     return NextResponse.json(result);

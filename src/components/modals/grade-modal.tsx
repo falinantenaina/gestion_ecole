@@ -55,10 +55,14 @@ export default function GradeModal({
   const [classes, setClasses] = useState<Class[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
   const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
+  const [classSubjects, setClassSubjects] = useState<
+    { subjectId: string; coefficient: number; subject?: Subject }[]
+  >([]);
 
   const [studentSearch, setStudentSearch] = useState("");
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
   const [loadingDropdowns, setLoadingDropdowns] = useState(false);
+  const [loadingCoefficient, setLoadingCoefficient] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -115,6 +119,43 @@ export default function GradeModal({
       setTerms([]);
     }
   }, [formData.schoolYearId, schoolYears]);
+
+  useEffect(() => {
+    if (formData.classId) {
+      fetch(`/api/classes/${formData.classId}`)
+        .then((r) => r.json())
+        .then((data) => {
+          setClassSubjects(data.subjects || []);
+        })
+        .catch(() => setClassSubjects([]));
+    } else {
+      setClassSubjects([]);
+    }
+    setFormData((prev) => ({ ...prev, subjectId: "" }));
+  }, [formData.classId]);
+
+  useEffect(() => {
+    if (formData.classId && formData.subjectId) {
+      setLoadingCoefficient(true);
+      fetch(
+        `/api/classes/${formData.classId}?includeSubjects=true`
+      )
+        .then((r) => r.json())
+        .then((data) => {
+          const cs = (data.subjects || []).find(
+            (s: { subjectId: string }) => s.subjectId === formData.subjectId
+          );
+          if (cs) {
+            setFormData((prev) => ({
+              ...prev,
+              coefficient: String(cs.coefficient ?? 1),
+            }));
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoadingCoefficient(false));
+    }
+  }, [formData.classId, formData.subjectId]);
 
   useEffect(() => {
     if (grade) {
@@ -475,11 +516,21 @@ export default function GradeModal({
                     }`}
                   >
                     <option value="">Sélectionner...</option>
-                    {subjects.map((subject) => (
-                      <option key={subject.id} value={subject.id}>
-                        {subject.name} ({subject.code})
-                      </option>
-                    ))}
+                    {(formData.classId ? classSubjects : subjects).map((cs) => {
+                      let subj: Subject | null = null;
+                      if (formData.classId) {
+                        const csAny = cs as any;
+                        subj = csAny.subject || subjects.find((s: Subject) => s.id === csAny.subjectId) || null;
+                      } else {
+                        subj = cs as Subject;
+                      }
+                      if (!subj) return null;
+                      return (
+                        <option key={subj.id} value={subj.id}>
+                          {subj.name} ({subj.code})
+                        </option>
+                      );
+                    })}
                   </select>
                   {errors.subjectId && (
                     <p className="text-xs text-red-500 mt-1">
@@ -549,15 +600,16 @@ export default function GradeModal({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Coefficient
+                    {loadingCoefficient && (
+                      <Loader2 className="inline w-3 h-3 ml-1 animate-spin" />
+                    )}
                   </label>
                   <input
                     type="number"
                     name="coefficient"
                     value={formData.coefficient}
-                    onChange={handleChange}
-                    min="0.5"
-                    step="0.5"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500 cursor-not-allowed"
                   />
                 </div>
                 <div>

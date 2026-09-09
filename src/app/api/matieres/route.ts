@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, code, description, coefficient } = body;
+    const { name, code, description } = body;
 
     if (!name || !code) {
       return NextResponse.json(
@@ -86,7 +86,6 @@ export async function POST(request: NextRequest) {
         name,
         code,
         description,
-        coefficient: coefficient || 1,
       },
     });
 

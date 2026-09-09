@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, level, section, capacity, schoolYearId, description } = body;
+    const { name, level, section, capacity, schoolYearId, description, subjects } = body;
 
     if (!name || !level || !schoolYearId) {
       return NextResponse.json(
@@ -107,8 +107,18 @@ export async function POST(request: NextRequest) {
         capacity: capacity || 40,
         schoolYearId,
         description,
+        ...(Array.isArray(subjects) && subjects.length > 0
+          ? {
+              subjects: {
+                create: subjects.map((s: { subjectId: string; coefficient?: number }) => ({
+                  subjectId: s.subjectId,
+                  coefficient: s.coefficient ?? 1,
+                })),
+              },
+            }
+          : {}),
       },
-      include: { schoolYear: true },
+      include: { schoolYear: true, subjects: { include: { subject: true } } },
     });
 
     return NextResponse.json(result, { status: 201 });

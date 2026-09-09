@@ -85,7 +85,7 @@ export async function PUT(
       },
       include: {
         student: { select: { id: true, firstName: true, lastName: true, matricule: true } },
-        subject: { select: { id: true, name: true, code: true, coefficient: true } },
+        subject: { select: { id: true, name: true, code: true } },
       },
     });
 

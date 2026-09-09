@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
           where,
           include: {
             student: { select: { id: true, firstName: true, lastName: true, matricule: true } },
-            subject: { select: { name: true, coefficient: true } },
+            subject: { select: { name: true } },
           },
         });
 
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
             enrollments: { where: { status: "VALIDATED" } },
             grades: {
               include: {
-                subject: { select: { name: true, coefficient: true } },
+                subject: { select: { name: true } },
               },
             },
             schoolYear: { select: { name: true } },

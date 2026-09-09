@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           student: { select: { id: true, firstName: true, lastName: true, matricule: true } },
-          subject: { select: { id: true, name: true, code: true, coefficient: true } },
+          subject: { select: { id: true, name: true, code: true } },
           teacher: { select: { id: true, firstName: true, lastName: true } },
           term: true,
           class: { select: { id: true, name: true } },
@@ -80,7 +80,6 @@ export async function POST(request: NextRequest) {
       evaluationType,
       score,
       maxScore,
-      coefficient,
       comment,
       evaluationName,
     } = body;
@@ -99,6 +98,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const classSubject = await prisma.classSubject.findUnique({
+      where: { classId_subjectId: { classId, subjectId } },
+    });
+
+    const coefficient = classSubject?.coefficient ?? 1;
+
     const result = await prisma.grade.create({
       data: {
         studentId,
@@ -110,13 +115,13 @@ export async function POST(request: NextRequest) {
         evaluationType,
         score,
         maxScore: maxScore || 20,
-        coefficient: coefficient || 1,
+        coefficient,
         comment,
         evaluationName,
       },
       include: {
         student: { select: { id: true, firstName: true, lastName: true, matricule: true } },
-        subject: { select: { id: true, name: true, code: true, coefficient: true } },
+        subject: { select: { id: true, name: true, code: true } },
       },
     });
 

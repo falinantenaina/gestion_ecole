@@ -146,7 +146,7 @@ export default function MatieresPage() {
                   <th className="px-4 py-3 font-medium">Code</th>
                   <th className="px-4 py-3 font-medium">Nom</th>
                   <th className="px-4 py-3 font-medium hidden sm:table-cell">
-                    Coefficient
+                    Coeff. (par classe)
                   </th>
                   <th className="px-4 py-3 font-medium hidden md:table-cell">
                     Enseignants
@@ -169,7 +169,9 @@ export default function MatieresPage() {
                       {subject.name}
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">
-                      {subject.coefficient}
+                      {subject.classSubjects && subject.classSubjects.length > 0
+                        ? [...new Set(subject.classSubjects.map((cs) => cs.coefficient))].join(", ")
+                        : "—"}
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
                       {subject.teacherSubjects?.length || 0}

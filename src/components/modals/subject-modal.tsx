@@ -23,7 +23,6 @@ export default function SubjectModal({
     name: "",
     code: "",
     description: "",
-    coefficient: "1",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -36,14 +35,12 @@ export default function SubjectModal({
         name: subject.name || "",
         code: subject.code || "",
         description: subject.description || "",
-        coefficient: String(subject.coefficient || 1),
       });
     } else {
       setFormData({
         name: "",
         code: "",
         description: "",
-        coefficient: "1",
       });
     }
     setErrors({});
@@ -58,12 +55,6 @@ export default function SubjectModal({
     }
     if (!formData.code.trim()) {
       newErrors.code = "Le code est requis";
-    }
-    if (
-      formData.coefficient &&
-      (isNaN(Number(formData.coefficient)) || Number(formData.coefficient) < 0)
-    ) {
-      newErrors.coefficient = "Le coefficient doit être un nombre positif";
     }
 
     setErrors(newErrors);
@@ -85,7 +76,6 @@ export default function SubjectModal({
         name: formData.name.trim(),
         code: formData.code.trim(),
         description: formData.description.trim() || null,
-        coefficient: formData.coefficient ? Number(formData.coefficient) : 1,
       };
 
       const res = await fetch(url, {
@@ -191,26 +181,6 @@ export default function SubjectModal({
                 <p className="text-xs text-red-500 mt-1">{errors.code}</p>
               )}
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Coefficient
-            </label>
-            <input
-              type="number"
-              name="coefficient"
-              value={formData.coefficient}
-              onChange={handleChange}
-              min="0"
-              step="0.5"
-              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                errors.coefficient ? "border-red-300" : "border-gray-300"
-              }`}
-            />
-            {errors.coefficient && (
-              <p className="text-xs text-red-500 mt-1">{errors.coefficient}</p>
-            )}
           </div>
 
           <div>

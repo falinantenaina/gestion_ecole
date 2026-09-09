@@ -48,7 +48,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, code, description, coefficient } = body;
+    const { name, code, description } = body;
 
     const existingSubject = await prisma.subject.findUnique({ where: { id } });
     if (!existingSubject) {
@@ -73,7 +73,6 @@ export async function PUT(
         ...(name && { name }),
         ...(code && { code }),
         ...(description !== undefined && { description }),
-        ...(coefficient !== undefined && { coefficient }),
       },
     });
 

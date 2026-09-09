@@ -414,7 +414,7 @@ export default function BulletinPage() {
                         </div>
                       </td>
                       <td className="px-3 py-2.5 text-center text-gray-600">
-                        {sa.subject.coefficient}
+                        {sa.totalCoeff}
                       </td>
                       {sa.grades.slice(0, 3).map((g, i) => (
                         <td
