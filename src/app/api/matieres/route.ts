@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { Role } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { getSessionRole, requireRole } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const session = await getSessionRole();
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
@@ -48,6 +45,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la récupération des matières:", error);
     return NextResponse.json(
       { error: "Erreur lors de la récupération des matières" },
@@ -58,10 +56,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const session = await getSessionRole();
+    requireRole(session, [Role.ADMIN]);
 
     const body = await request.json();
     const { name, code, description } = body;
@@ -91,6 +87,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la création de la matière:", error);
     return NextResponse.json(
       { error: "Erreur lors de la création de la matière" },

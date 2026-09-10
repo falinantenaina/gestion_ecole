@@ -8,6 +8,7 @@ interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   payment?: Payment | null;
+  studentId?: string;
   onSuccess: () => void;
 }
 
@@ -22,6 +23,7 @@ export default function PaymentModal({
   isOpen,
   onClose,
   payment,
+  studentId,
   onSuccess,
 }: PaymentModalProps) {
   const isEditing = !!payment;
@@ -89,6 +91,23 @@ export default function PaymentModal({
       if (student) {
         setStudentSearch(`${student.firstName} ${student.lastName}`);
       }
+    } else if (studentId) {
+      setFormData((prev) => ({
+        ...prev,
+        studentId,
+        paymentTypeId: "",
+        amount: "",
+        paymentMethod: "CASH",
+        reference: "",
+        notes: "",
+        paymentDate: new Date().toISOString().split("T")[0],
+      }));
+      const found = students.find((s) => s.id === studentId);
+      if (found) {
+        setStudentSearch(`${found.firstName} ${found.lastName}`);
+      } else {
+        setStudentSearch("");
+      }
     } else {
       setFormData({
         studentId: "",
@@ -103,7 +122,7 @@ export default function PaymentModal({
     }
     setErrors({});
     setSubmitError("");
-  }, [payment, isOpen]);
+  }, [payment, isOpen, studentId, students]);
 
   const filteredStudents = students.filter((s) => {
     const query = studentSearch.toLowerCase();
@@ -332,7 +351,7 @@ export default function PaymentModal({
                     <option value="">Sélectionner...</option>
                     {paymentTypes.map((pt) => (
                       <option key={pt.id} value={pt.id}>
-                        {pt.name} - {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "XAF", minimumFractionDigits: 0 }).format(pt.amount)}
+                        {pt.name} - {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "MGA", minimumFractionDigits: 0 }).format(pt.amount)}
                       </option>
                     ))}
                   </select>
@@ -345,7 +364,7 @@ export default function PaymentModal({
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Montant (XAF) *
+                    Montant (Ar) *
                   </label>
                   <input
                     type="text"

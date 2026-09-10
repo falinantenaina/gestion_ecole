@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { Role } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import {
+  getSessionRole,
+  requireRole,
+  getTeacherId,
+  getStudentId,
+  getChildStudentIds,
+} from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
-
+    const session = await getSessionRole();
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
@@ -29,6 +31,25 @@ export async function GET(request: NextRequest) {
     }
     if (gender) {
       where.gender = gender;
+    }
+
+    const role = session.user.role;
+
+    if (role === Role.TEACHER) {
+      const teacherId = await getTeacherId(session.user.id);
+      const classIds = (
+        await prisma.teacherClass.findMany({
+          where: { teacherId },
+          select: { classId: true },
+        })
+      ).map((tc) => tc.classId);
+      where.enrollments = { some: { classId: { in: classIds }, status: "VALIDATED" } };
+    } else if (role === Role.PARENT) {
+      const childIds = await getChildStudentIds(session.user.id);
+      where.id = { in: childIds };
+    } else if (role === Role.STUDENT) {
+      const studentId = await getStudentId(session.user.id);
+      where.id = studentId;
     }
 
     const [students, total] = await Promise.all([
@@ -59,6 +80,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la récupération des élèves:", error);
     return NextResponse.json(
       { error: "Erreur lors de la récupération des élèves" },
@@ -69,10 +91,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const session = await getSessionRole();
+    requireRole(session, [Role.ADMIN, Role.SECRETARY]);
 
     const body = await request.json();
     const {
@@ -159,6 +179,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la création de l'élève:", error);
     return NextResponse.json(
       { error: "Erreur lors de la création de l'élève" },

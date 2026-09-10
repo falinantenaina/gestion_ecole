@@ -158,7 +158,7 @@ export default function PaiementsPage() {
   function formatAmount(amount: number) {
     return new Intl.NumberFormat("fr-FR", {
       style: "currency",
-      currency: "XAF",
+      currency: "MGA",
       minimumFractionDigits: 0,
     }).format(amount);
   }

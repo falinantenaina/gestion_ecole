@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  Banknote,
 } from "lucide-react";
 import type { Role } from "@/types";
 
@@ -30,16 +31,17 @@ interface SidebarProps {
   };
 }
 
-const navigation = [
-  { name: "Tableau de bord", href: "/", icon: LayoutDashboard },
-  { name: "Élèves", href: "/eleves", icon: GraduationCap },
-  { name: "Enseignants", href: "/enseignants", icon: BookOpen },
-  { name: "Classes", href: "/classes", icon: Users },
-  { name: "Matières", href: "/matieres", icon: Library },
-  { name: "Inscriptions", href: "/inscriptions", icon: FileText },
-  { name: "Notes", href: "/notes", icon: Award },
-  { name: "Paiements", href: "/paiements", icon: CreditCard },
-  { name: "Rapports", href: "/rapports", icon: BarChart3 },
+const allNavigation = [
+  { name: "Tableau de bord", href: "/", icon: LayoutDashboard, roles: ["ADMIN", "DIRECTOR", "SECRETARY", "TEACHER", "PARENT", "STUDENT", "ACCOUNTANT"] as Role[] },
+  { name: "Élèves", href: "/eleves", icon: GraduationCap, roles: ["ADMIN", "DIRECTOR", "SECRETARY", "TEACHER"] as Role[] },
+  { name: "Enseignants", href: "/enseignants", icon: BookOpen, roles: ["ADMIN", "DIRECTOR", "SECRETARY"] as Role[] },
+  { name: "Classes", href: "/classes", icon: Users, roles: ["ADMIN", "DIRECTOR", "SECRETARY", "TEACHER"] as Role[] },
+  { name: "Matières", href: "/matieres", icon: Library, roles: ["ADMIN", "DIRECTOR", "SECRETARY"] as Role[] },
+  { name: "Inscriptions", href: "/inscriptions", icon: FileText, roles: ["ADMIN", "DIRECTOR", "SECRETARY"] as Role[] },
+  { name: "Notes", href: "/notes", icon: Award, roles: ["ADMIN", "DIRECTOR", "TEACHER", "STUDENT", "PARENT"] as Role[] },
+  { name: "Écolage", href: "/ecolage", icon: Banknote, roles: ["ADMIN", "DIRECTOR", "SECRETARY", "ACCOUNTANT"] as Role[] },
+  { name: "Paiements", href: "/paiements", icon: CreditCard, roles: ["ADMIN", "DIRECTOR", "SECRETARY", "ACCOUNTANT", "STUDENT", "PARENT"] as Role[] },
+  { name: "Rapports", href: "/rapports", icon: BarChart3, roles: ["ADMIN", "DIRECTOR"] as Role[] },
 ];
 
 const roleLabels: Record<Role, string> = {
@@ -107,26 +109,28 @@ export default function Sidebar({ user }: SidebarProps) {
       </div>
 
       <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
-        {navigation.map((item) => {
-          const isActive =
-            pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-white/15 text-white"
-                  : "text-indigo-200 hover:bg-white/10 hover:text-white"
-              } ${collapsed ? "justify-center" : ""}`}
-              title={collapsed ? item.name : undefined}
-            >
-              <item.icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span>{item.name}</span>}
-            </Link>
-          );
-        })}
+        {allNavigation
+          .filter((item) => item.roles.includes(user.role))
+          .map((item) => {
+            const isActive =
+              pathname === item.href || pathname.startsWith(item.href + "/");
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-white/15 text-white"
+                    : "text-indigo-200 hover:bg-white/10 hover:text-white"
+                } ${collapsed ? "justify-center" : ""}`}
+                title={collapsed ? item.name : undefined}
+              >
+                <item.icon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span>{item.name}</span>}
+              </Link>
+            );
+          })}
       </nav>
 
       <div className="border-t border-indigo-700 p-3">

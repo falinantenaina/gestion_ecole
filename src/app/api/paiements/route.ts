@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { Role } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { getSessionRole, requireRole, getStudentId } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
-
+    const session = await getSessionRole();
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
@@ -28,6 +24,11 @@ export async function GET(request: NextRequest) {
       where.paymentDate = {};
       if (startDate) where.paymentDate.gte = new Date(startDate);
       if (endDate) where.paymentDate.lte = new Date(endDate);
+    }
+
+    if (session.user.role === Role.STUDENT) {
+      const sid = await getStudentId(session.user.id);
+      where.studentId = sid;
     }
 
     const [payments, total] = await Promise.all([
@@ -54,6 +55,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la récupération des paiements:", error);
     return NextResponse.json(
       { error: "Erreur lors de la récupération des paiements" },
@@ -64,10 +66,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const session = await getSessionRole();
+    requireRole(session, [Role.ADMIN, Role.SECRETARY, Role.ACCOUNTANT]);
 
     const body = await request.json();
     const {
@@ -125,6 +125,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la création du paiement:", error);
     return NextResponse.json(
       { error: "Erreur lors de la création du paiement" },

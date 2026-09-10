@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { Role } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { getSessionRole, requireRole } from "@/lib/api-helpers";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
-
+    const session = await getSessionRole();
     const { id } = await params;
+
     const subject = await prisma.subject.findUnique({
       where: { id },
       include: {
@@ -28,6 +25,7 @@ export async function GET(
 
     return NextResponse.json(subject);
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la récupération de la matière:", error);
     return NextResponse.json(
       { error: "Erreur lors de la récupération de la matière" },
@@ -41,10 +39,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const session = await getSessionRole();
+    requireRole(session, [Role.ADMIN]);
 
     const { id } = await params;
     const body = await request.json();
@@ -78,6 +74,7 @@ export async function PUT(
 
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la mise à jour de la matière:", error);
     return NextResponse.json(
       { error: "Erreur lors de la mise à jour de la matière" },
@@ -91,10 +88,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const session = await getSessionRole();
+    requireRole(session, [Role.ADMIN]);
 
     const { id } = await params;
     const subject = await prisma.subject.findUnique({ where: { id } });
@@ -107,6 +102,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Matière supprimée avec succès" });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la suppression de la matière:", error);
     return NextResponse.json(
       { error: "Erreur lors de la suppression de la matière" },

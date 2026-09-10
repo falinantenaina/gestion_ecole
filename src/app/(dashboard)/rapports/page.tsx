@@ -117,7 +117,7 @@ const tabs = [
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
-    currency: "XAF",
+    currency: "MGA",
     maximumFractionDigits: 0,
   }).format(amount);
 }

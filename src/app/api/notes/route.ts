@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { Role } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import {
+  getSessionRole,
+  requireRole,
+  getTeacherId,
+  getStudentId,
+  getChildStudentIds,
+} from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
-
+    const session = await getSessionRole();
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
@@ -26,6 +28,28 @@ export async function GET(request: NextRequest) {
     if (subjectId) where.subjectId = subjectId;
     if (termId) where.termId = termId;
     if (schoolYearId) where.schoolYearId = schoolYearId;
+
+    const role = session.user.role;
+
+    if (role === Role.TEACHER) {
+      const teacherId = await getTeacherId(session.user.id);
+      const classIds = (
+        await prisma.teacherClass.findMany({
+          where: { teacherId },
+          select: { classId: true },
+        })
+      ).map((tc) => tc.classId);
+      where.OR = [
+        { teacherId },
+        { classId: { in: classIds } },
+      ];
+    } else if (role === Role.STUDENT) {
+      const sid = await getStudentId(session.user.id);
+      where.studentId = sid;
+    } else if (role === Role.PARENT) {
+      const childIds = await getChildStudentIds(session.user.id);
+      where.studentId = { in: childIds };
+    }
 
     const [grades, total] = await Promise.all([
       prisma.grade.findMany({
@@ -54,6 +78,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la récupération des notes:", error);
     return NextResponse.json(
       { error: "Erreur lors de la récupération des notes" },
@@ -64,16 +89,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const session = await getSessionRole();
+    requireRole(session, [Role.TEACHER]);
+
+    const teacherId = await getTeacherId(session.user.id);
 
     const body = await request.json();
     const {
       studentId,
       subjectId,
-      teacherId,
       schoolYearId,
       termId,
       classId,
@@ -84,7 +108,7 @@ export async function POST(request: NextRequest) {
       evaluationName,
     } = body;
 
-    if (!studentId || !subjectId || !teacherId || !schoolYearId || !termId || !classId || !evaluationType || score === undefined) {
+    if (!studentId || !subjectId || !schoolYearId || !termId || !classId || !evaluationType || score === undefined) {
       return NextResponse.json(
         { error: "Tous les champs obligatoires doivent être remplis" },
         { status: 400 }
@@ -95,6 +119,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "La note doit être comprise entre 0 et la note maximale" },
         { status: 400 }
+      );
+    }
+
+    const teacherSubject = await prisma.teacherSubject.findUnique({
+      where: { teacherId_subjectId: { teacherId, subjectId } },
+    });
+    if (!teacherSubject) {
+      return NextResponse.json(
+        { error: "Vous n'enseignez pas cette matière" },
+        { status: 403 }
+      );
+    }
+
+    const teacherClass = await prisma.teacherClass.findUnique({
+      where: { teacherId_classId: { teacherId, classId } },
+    });
+    if (!teacherClass) {
+      return NextResponse.json(
+        { error: "Vous n'êtes pas assigné à cette classe" },
+        { status: 403 }
       );
     }
 
@@ -127,6 +171,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la création de la note:", error);
     return NextResponse.json(
       { error: "Erreur lors de la création de la note" },

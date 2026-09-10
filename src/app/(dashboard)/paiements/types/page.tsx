@@ -168,7 +168,7 @@ export default function PaymentTypesPage() {
   function formatAmount(amount: number) {
     return new Intl.NumberFormat("fr-FR", {
       style: "currency",
-      currency: "XAF",
+      currency: "MGA",
       minimumFractionDigits: 0,
     }).format(amount);
   }
@@ -412,7 +412,7 @@ export default function PaymentTypesPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Montant (XAF) *
+                  Montant (Ar) *
                 </label>
                 <input
                   type="text"

@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { Role } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { getSessionRole, requireRole, getTeacherId } from "@/lib/api-helpers";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    const session = await getSessionRole();
+    const { id } = await params;
+
+    if (session.user.role === Role.TEACHER) {
+      const teacherId = await getTeacherId(session.user.id);
+      const tc = await prisma.teacherClass.findUnique({
+        where: { teacherId_classId: { teacherId, classId: id } },
+      });
+      if (!tc) {
+        return NextResponse.json({ error: "Accès interdit" }, { status: 403 });
+      }
     }
 
-    const { id } = await params;
     const classe = await prisma.class.findUnique({
       where: { id },
       include: {
@@ -33,6 +40,7 @@ export async function GET(
 
     return NextResponse.json(classe);
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la récupération de la classe:", error);
     return NextResponse.json(
       { error: "Erreur lors de la récupération de la classe" },
@@ -46,10 +54,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const session = await getSessionRole();
+    requireRole(session, [Role.ADMIN, Role.SECRETARY]);
 
     const { id } = await params;
     const body = await request.json();
@@ -100,6 +106,7 @@ export async function PUT(
 
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la mise à jour de la classe:", error);
     return NextResponse.json(
       { error: "Erreur lors de la mise à jour de la classe" },
@@ -113,10 +120,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const session = await getSessionRole();
+    requireRole(session, [Role.ADMIN, Role.SECRETARY]);
 
     const { id } = await params;
     const classe = await prisma.class.findUnique({
@@ -139,6 +144,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Classe supprimée avec succès" });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la suppression de la classe:", error);
     return NextResponse.json(
       { error: "Erreur lors de la suppression de la classe" },

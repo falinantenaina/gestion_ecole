@@ -292,9 +292,9 @@ export default function EleveDetailPage() {
               <p className="text-2xl font-bold text-gray-900 mt-1">
                 {new Intl.NumberFormat("fr-FR", {
                   style: "currency",
-                  currency: "XOF",
-                  maximumFractionDigits: 0,
-                }).format(totalPaid)}
+                   currency: "MGA",
+                   maximumFractionDigits: 0,
+                 }).format(totalPaid)}
               </p>
             </div>
           </div>
@@ -489,9 +489,9 @@ export default function EleveDetailPage() {
                         <td className="py-2.5 font-semibold text-green-600">
                           {new Intl.NumberFormat("fr-FR", {
                             style: "currency",
-                            currency: "XOF",
-                            maximumFractionDigits: 0,
-                          }).format(payment.amount)}
+                             currency: "MGA",
+                             maximumFractionDigits: 0,
+                           }).format(payment.amount)}
                         </td>
                         <td className="py-2.5 text-gray-500">
                           {payment.paymentMethod}

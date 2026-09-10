@@ -9,45 +9,21 @@ import {
   DollarSign,
   TrendingUp,
   FileText,
-  PieChart as PieChartIcon,
+  Award,
+  CreditCard,
+  Clock,
+  CheckCircle,
 } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-} from "recharts";
 
-interface Enrollment {
-  id: string;
-  student: { firstName: string; lastName: string; matricule: string };
-  class: { name: string };
-  schoolYear: { name: string };
-  enrollmentDate: string;
-  status: string;
+import { useSession } from "next-auth/react";
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "MGA",
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
-
-interface DashboardData {
-  totalStudents: number;
-  totalTeachers: number;
-  totalClasses: number;
-  todayAbsences: number;
-  totalPayments: number;
-  unpaidAmount: number;
-  recentEnrollments: Enrollment[];
-  monthlyPayments: { total: number; count: number };
-  monthlyPaymentHistory: { month: string; montant: number }[];
-  studentsByGender: { name: string; value: number }[];
-}
-
-const PIE_COLORS = ["#3B82F6", "#EC4899"];
 
 function SkeletonCard() {
   return (
@@ -63,25 +39,261 @@ function SkeletonCard() {
   );
 }
 
-function SkeletonChart() {
+function StatCard({ label, value, icon: Icon, bg, light }: {
+  label: string;
+  value: string | number;
+  icon: React.ElementType;
+  bg: string;
+  light: string;
+}) {
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm animate-pulse">
-      <div className="h-5 bg-gray-200 rounded w-40 mb-6" />
-      <div className="h-64 bg-gray-100 rounded" />
+    <div className={`${light} rounded-xl p-5 border border-gray-100`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-500">{label}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+        </div>
+        <div className={`${bg} w-12 h-12 rounded-xl flex items-center justify-center`}>
+          <Icon className="w-6 h-6 text-white" />
+        </div>
+      </div>
     </div>
   );
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "XOF",
-    maximumFractionDigits: 0,
-  }).format(amount);
+function AdminDashboard({ data }: { data: any }) {
+  return (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total Élèves" value={data.totalStudents || 0} icon={GraduationCap} bg="bg-blue-500" light="bg-blue-50" />
+        <StatCard label="Total Enseignants" value={data.totalTeachers || 0} icon={Users} bg="bg-green-500" light="bg-green-50" />
+        <StatCard label="Total Classes" value={data.totalClasses || 0} icon={BookOpen} bg="bg-purple-500" light="bg-purple-50" />
+        <StatCard label="Absences Aujourd'hui" value={data.todayAbsences || 0} icon={AlertTriangle} bg="bg-red-500" light="bg-red-50" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Paiements Reçus" value={formatCurrency(data.totalPayments || 0)} icon={DollarSign} bg="bg-emerald-500" light="bg-emerald-50" />
+        <StatCard label="Montant Impayés" value={formatCurrency(data.unpaidAmount || 0)} icon={TrendingUp} bg="bg-orange-500" light="bg-orange-50" />
+        <StatCard label="Inscriptions Récentes" value={(data.recentEnrollments || []).length} icon={FileText} bg="bg-indigo-500" light="bg-indigo-50" />
+        <StatCard label="Paiements ce Mois" value={formatCurrency(data.monthlyPayments?.total || 0)} icon={CreditCard} bg="bg-cyan-500" light="bg-cyan-50" />
+      </div>
+      {data.recentEnrollments && data.recentEnrollments.length > 0 && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Inscriptions Récentes</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-100">
+                  <th className="pb-3 font-medium">Élève</th>
+                  <th className="pb-3 font-medium">Matricule</th>
+                  <th className="pb-3 font-medium">Classe</th>
+                  <th className="pb-3 font-medium">Date</th>
+                  <th className="pb-3 font-medium">Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentEnrollments.map((e: any) => (
+                  <tr key={e.id} className="border-b border-gray-50 last:border-0">
+                    <td className="py-3 font-medium text-gray-900">{e.student?.firstName} {e.student?.lastName}</td>
+                    <td className="py-3 text-gray-500">{e.student?.matricule}</td>
+                    <td className="py-3 text-gray-700">{e.class?.name}</td>
+                    <td className="py-3 text-gray-500">{new Date(e.enrollmentDate).toLocaleDateString("fr-FR")}</td>
+                    <td className="py-3">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                        e.status === "VALIDATED" ? "bg-green-100 text-green-700" :
+                        e.status === "PENDING" ? "bg-yellow-100 text-yellow-700" :
+                        "bg-gray-100 text-gray-600"
+                      }`}>
+                        {e.status === "VALIDATED" ? "Validée" : e.status === "PENDING" ? "En attente" : e.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function TeacherDashboard({ data }: { data: any }) {
+  return (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Mes Classes" value={data.totalClasses || 0} icon={BookOpen} bg="bg-blue-500" light="bg-blue-50" />
+        <StatCard label="Mes Élèves" value={data.totalStudents || 0} icon={GraduationCap} bg="bg-green-500" light="bg-green-50" />
+        <StatCard label="Notes Saisies" value={data.totalGrades || 0} icon={Award} bg="bg-purple-500" light="bg-purple-50" />
+        <StatCard label="Moyenne Générale" value={data.averageScore ? `${Number(data.averageScore).toFixed(1)}/20` : "-"} icon={TrendingUp} bg="bg-orange-500" light="bg-orange-50" />
+      </div>
+      {data.recentGrades && data.recentGrades.length > 0 && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Dernières Notes Saisies</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-100">
+                  <th className="pb-3 font-medium">Élève</th>
+                  <th className="pb-3 font-medium">Matière</th>
+                  <th className="pb-3 font-medium">Note</th>
+                  <th className="pb-3 font-medium">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentGrades.map((g: any) => (
+                  <tr key={g.id} className="border-b border-gray-50 last:border-0">
+                    <td className="py-3 font-medium text-gray-900">{g.student?.firstName} {g.student?.lastName}</td>
+                    <td className="py-3 text-gray-700">{g.subject?.name}</td>
+                    <td className="py-3">
+                      <span className={`font-semibold ${g.score >= 10 ? "text-green-600" : "text-red-600"}`}>
+                        {g.score}/{g.maxScore || 20}
+                      </span>
+                    </td>
+                    <td className="py-3 text-gray-500">{new Date(g.evaluationDate).toLocaleDateString("fr-FR")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function StudentDashboard({ data }: { data: any }) {
+  return (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Moyenne Générale" value={data.averageScore ? `${Number(data.averageScore).toFixed(1)}/20` : "-"} icon={Award} bg="bg-blue-500" light="bg-blue-50" />
+        <StatCard label="Nombre de Notes" value={data.totalGrades || 0} icon={FileText} bg="bg-green-500" light="bg-green-50" />
+        <StatCard label="Absences" value={data.absencesCount || 0} icon={AlertTriangle} bg="bg-red-500" light="bg-red-50" />
+        <StatCard label="Derniers Paiements" value={(data.recentPayments || []).length} icon={CreditCard} bg="bg-purple-500" light="bg-purple-50" />
+      </div>
+      {data.grades && data.grades.length > 0 && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Mes Dernières Notes</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-100">
+                  <th className="pb-3 font-medium">Matière</th>
+                  <th className="pb-3 font-medium">Note</th>
+                  <th className="pb-3 font-medium">Trimestre</th>
+                  <th className="pb-3 font-medium">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.grades.map((g: any) => (
+                  <tr key={g.id} className="border-b border-gray-50 last:border-0">
+                    <td className="py-3 font-medium text-gray-900">{g.subject?.name}</td>
+                    <td className="py-3">
+                      <span className={`font-semibold ${g.score >= 10 ? "text-green-600" : "text-red-600"}`}>
+                        {g.score}/{g.maxScore || 20}
+                      </span>
+                    </td>
+                    <td className="py-3 text-gray-500">{g.term?.name}</td>
+                    <td className="py-3 text-gray-500">{new Date(g.evaluationDate).toLocaleDateString("fr-FR")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function SecretaryDashboard({ data }: { data: any }) {
+  return (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total Élèves" value={data.totalStudents || 0} icon={GraduationCap} bg="bg-blue-500" light="bg-blue-50" />
+        <StatCard label="Inscriptions En Attente" value={data.pendingEnrollments || 0} icon={Clock} bg="bg-yellow-500" light="bg-yellow-50" />
+        <StatCard label="Inscriptions Validées" value={data.validatedEnrollments || 0} icon={CheckCircle} bg="bg-green-500" light="bg-green-50" />
+        <StatCard label="Inscriptions Récentes" value={(data.recentEnrollments || []).length} icon={FileText} bg="bg-purple-500" light="bg-purple-50" />
+      </div>
+      {data.recentEnrollments && data.recentEnrollments.length > 0 && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Dernières Inscriptions</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-100">
+                  <th className="pb-3 font-medium">Élève</th>
+                  <th className="pb-3 font-medium">Matricule</th>
+                  <th className="pb-3 font-medium">Classe</th>
+                  <th className="pb-3 font-medium">Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentEnrollments.map((e: any) => (
+                  <tr key={e.id} className="border-b border-gray-50 last:border-0">
+                    <td className="py-3 font-medium text-gray-900">{e.student?.firstName} {e.student?.lastName}</td>
+                    <td className="py-3 text-gray-500">{e.student?.matricule}</td>
+                    <td className="py-3 text-gray-700">{e.class?.name}</td>
+                    <td className="py-3">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                        e.status === "VALIDATED" ? "bg-green-100 text-green-700" :
+                        e.status === "PENDING" ? "bg-yellow-100 text-yellow-700" :
+                        "bg-gray-100 text-gray-600"
+                      }`}>
+                        {e.status === "VALIDATED" ? "Validée" : e.status === "PENDING" ? "En attente" : e.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function AccountantDashboard({ data }: { data: any }) {
+  return (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total Perçu" value={formatCurrency(data.totalPaid || 0)} icon={DollarSign} bg="bg-green-500" light="bg-green-50" />
+        <StatCard label="Transactions" value={data.totalTransactions || 0} icon={CreditCard} bg="bg-blue-500" light="bg-blue-50" />
+        <StatCard label="Ce Mois" value={formatCurrency(data.monthlyTotal || 0)} icon={TrendingUp} bg="bg-purple-500" light="bg-purple-50" />
+        <StatCard label="Nb Paiements Mois" value={data.monthlyCount || 0} icon={FileText} bg="bg-orange-500" light="bg-orange-50" />
+      </div>
+      {data.paymentTypeSummary && data.paymentTypeSummary.length > 0 && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recettes par Type</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-100">
+                  <th className="pb-3 font-medium">Type de Frais</th>
+                  <th className="pb-3 font-medium">Montant Reçu</th>
+                  <th className="pb-3 font-medium">Nombre</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.paymentTypeSummary.map((pt: any, i: number) => (
+                  <tr key={i} className="border-b border-gray-50 last:border-0">
+                    <td className="py-3 font-medium text-gray-900">{pt.name}</td>
+                    <td className="py-3 text-green-600 font-semibold">{formatCurrency(pt.totalReceived)}</td>
+                    <td className="py-3 text-gray-500">{pt.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
+  const { data: session } = useSession();
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -111,10 +323,6 @@ export default function DashboardPage() {
             <SkeletonCard key={i} />
           ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <SkeletonChart />
-          <SkeletonChart />
-        </div>
       </div>
     );
   }
@@ -127,247 +335,26 @@ export default function DashboardPage() {
     );
   }
 
-  const statCardsRow1 = [
-    {
-      label: "Total Élèves",
-      value: data.totalStudents,
-      icon: GraduationCap,
-      bg: "bg-blue-500",
-      light: "bg-blue-50",
-      text: "text-blue-600",
-    },
-    {
-      label: "Total Enseignants",
-      value: data.totalTeachers,
-      icon: Users,
-      bg: "bg-green-500",
-      light: "bg-green-50",
-      text: "text-green-600",
-    },
-    {
-      label: "Total Classes",
-      value: data.totalClasses,
-      icon: BookOpen,
-      bg: "bg-purple-500",
-      light: "bg-purple-50",
-      text: "text-purple-600",
-    },
-    {
-      label: "Absences Aujourd'hui",
-      value: data.todayAbsences,
-      icon: AlertTriangle,
-      bg: "bg-red-500",
-      light: "bg-red-50",
-      text: "text-red-600",
-    },
-  ];
-
-  const statCardsRow2 = [
-    {
-      label: "Paiements Reçus",
-      value: formatCurrency(data.totalPayments),
-      icon: DollarSign,
-      bg: "bg-emerald-500",
-      light: "bg-emerald-50",
-      text: "text-emerald-600",
-    },
-    {
-      label: "Montant Impayés",
-      value: formatCurrency(data.unpaidAmount),
-      icon: TrendingUp,
-      bg: "bg-orange-500",
-      light: "bg-orange-50",
-      text: "text-orange-600",
-    },
-    {
-      label: "Inscriptions Récentes",
-      value: data.recentEnrollments.length,
-      icon: FileText,
-      bg: "bg-indigo-500",
-      light: "bg-indigo-50",
-      text: "text-indigo-600",
-    },
-    {
-      label: "Paiements ce Mois",
-      value: formatCurrency(data.monthlyPayments.total),
-      icon: PieChartIcon,
-      bg: "bg-cyan-500",
-      light: "bg-cyan-50",
-      text: "text-cyan-600",
-    },
-  ];
+  const role = (session?.user as any)?.role;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Tableau de bord</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Vue d&apos;ensemble de votre établissement scolaire
+          {role === "TEACHER" && "Vue d'ensemble de vos classes et enseignements"}
+          {role === "STUDENT" && "Vue d'ensemble de vos résultats et paiements"}
+          {role === "SECRETARY" && "Gestion des inscriptions et des élèves"}
+          {role === "ACCOUNTANT" && "Suivi des paiements et finances"}
+          {(role === "ADMIN" || role === "DIRECTOR") && "Vue d'ensemble de votre établissement scolaire"}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCardsRow1.map((card) => (
-          <div
-            key={card.label}
-            className={`${card.light} rounded-xl p-5 border border-gray-100`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">{card.label}</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{card.value}</p>
-              </div>
-              <div className={`${card.bg} w-12 h-12 rounded-xl flex items-center justify-center`}>
-                <card.icon className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCardsRow2.map((card) => (
-          <div
-            key={card.label}
-            className={`${card.light} rounded-xl p-5 border border-gray-100`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">{card.label}</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{card.value}</p>
-              </div>
-              <div className={`${card.bg} w-12 h-12 rounded-xl flex items-center justify-center`}>
-                <card.icon className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Paiements Mensuels
-          </h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.monthlyPaymentHistory}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value: number) => [formatCurrency(value), "Montant"]}
-                />
-                <Bar dataKey="montant" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Élèves par Genre
-          </h2>
-          <div className="h-64">
-            {data.studentsByGender.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data.studentsByGender}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={5}
-                    dataKey="value"
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
-                    }
-                  >
-                    {data.studentsByGender.map((_, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={PIE_COLORS[index % PIE_COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Legend />
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
-                Aucune donnée disponible
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {data.recentEnrollments.length > 0 && (
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Inscriptions Récentes
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 border-b border-gray-100">
-                  <th className="pb-3 font-medium">Élève</th>
-                  <th className="pb-3 font-medium">Matricule</th>
-                  <th className="pb-3 font-medium">Classe</th>
-                  <th className="pb-3 font-medium">Année</th>
-                  <th className="pb-3 font-medium">Date</th>
-                  <th className="pb-3 font-medium">Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.recentEnrollments.map((enrollment) => (
-                  <tr
-                    key={enrollment.id}
-                    className="border-b border-gray-50 last:border-0"
-                  >
-                    <td className="py-3 font-medium text-gray-900">
-                      {enrollment.student.firstName} {enrollment.student.lastName}
-                    </td>
-                    <td className="py-3 text-gray-500">
-                      {enrollment.student.matricule}
-                    </td>
-                    <td className="py-3 text-gray-700">{enrollment.class.name}</td>
-                    <td className="py-3 text-gray-500">
-                      {enrollment.schoolYear.name}
-                    </td>
-                    <td className="py-3 text-gray-500">
-                      {new Date(enrollment.enrollmentDate).toLocaleDateString(
-                        "fr-FR"
-                      )}
-                    </td>
-                    <td className="py-3">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                          enrollment.status === "VALIDATED"
-                            ? "bg-green-100 text-green-700"
-                            : enrollment.status === "PENDING"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {enrollment.status === "VALIDATED"
-                          ? "Validée"
-                          : enrollment.status === "PENDING"
-                            ? "En attente"
-                            : enrollment.status === "CANCELLED"
-                              ? "Annulée"
-                              : enrollment.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {role === "ADMIN" || role === "DIRECTOR" ? <AdminDashboard data={data} /> : null}
+      {role === "TEACHER" ? <TeacherDashboard data={data} /> : null}
+      {role === "STUDENT" ? <StudentDashboard data={data} /> : null}
+      {role === "SECRETARY" ? <SecretaryDashboard data={data} /> : null}
+      {role === "ACCOUNTANT" ? <AccountantDashboard data={data} /> : null}
     </div>
   );
 }

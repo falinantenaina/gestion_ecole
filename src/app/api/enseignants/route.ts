@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { Role } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { getSessionRole, requireRole, getTeacherId } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
-
+    const session = await getSessionRole();
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
@@ -25,6 +21,11 @@ export async function GET(request: NextRequest) {
         { employeeId: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } },
       ];
+    }
+
+    if (session.user.role === Role.TEACHER) {
+      const teacherId = await getTeacherId(session.user.id);
+      where.id = teacherId;
     }
 
     const [teachers, total] = await Promise.all([
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la récupération des enseignants:", error);
     return NextResponse.json(
       { error: "Erreur lors de la récupération des enseignants" },
@@ -62,10 +64,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const session = await getSessionRole();
+    requireRole(session, [Role.ADMIN, Role.SECRETARY]);
 
     const body = await request.json();
     const {
@@ -158,6 +158,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la création de l'enseignant:", error);
     return NextResponse.json(
       { error: "Erreur lors de la création de l'enseignant" },
