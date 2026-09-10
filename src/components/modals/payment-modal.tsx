@@ -48,6 +48,18 @@ export default function PaymentModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [remainingBalance, setRemainingBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (formData.studentId && formData.paymentTypeId && !isEditing) {
+      fetch(`/api/paiements/remaining?studentId=${formData.studentId}&paymentTypeId=${formData.paymentTypeId}`)
+        .then((r) => r.json())
+        .then((d) => setRemainingBalance(d.remaining ?? null))
+        .catch(() => setRemainingBalance(null));
+    } else {
+      setRemainingBalance(null);
+    }
+  }, [formData.studentId, formData.paymentTypeId, isEditing]);
 
   const fetchDropdowns = useCallback(async () => {
     setLoadingDropdowns(true);
@@ -145,6 +157,8 @@ export default function PaymentModal({
     }
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       newErrors.amount = "Le montant doit être supérieur à 0";
+    } else if (remainingBalance !== null && parseFloat(formData.amount) > remainingBalance) {
+      newErrors.amount = `Maximum autorisé : ${remainingBalance.toLocaleString("fr-FR")} Ar`;
     }
     if (!formData.paymentDate) {
       newErrors.paymentDate = "La date de paiement est requise";
@@ -198,8 +212,13 @@ export default function PaymentModal({
   }
 
   function handleAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const value = e.target.value;
+    let value = e.target.value;
     if (value === "" || /^\d*\.?\d*$/.test(value)) {
+      let numVal = parseFloat(value);
+      if (remainingBalance !== null && !isNaN(numVal) && numVal > remainingBalance) {
+        numVal = remainingBalance;
+        value = String(numVal);
+      }
       setFormData((prev) => ({ ...prev, amount: value }));
       if (errors.amount) {
         setErrors((prev) => {
@@ -370,11 +389,19 @@ export default function PaymentModal({
                     type="text"
                     value={formData.amount}
                     onChange={handleAmountChange}
-                    placeholder="0"
+                    placeholder={remainingBalance !== null ? `Max: ${remainingBalance.toLocaleString("fr-FR")}` : "0"}
+                    max={remainingBalance !== undefined && remainingBalance !== null ? remainingBalance : undefined}
                     className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                       errors.amount ? "border-red-300" : "border-gray-300"
                     }`}
                   />
+                  {remainingBalance !== null && (
+                    <p className={`text-xs mt-1 ${remainingBalance === 0 ? "text-green-600 font-medium" : "text-gray-500"}`}>
+                      {remainingBalance === 0
+                        ? "Entièrement payé"
+                        : `Reste à payer : ${remainingBalance.toLocaleString("fr-FR")} Ar`}
+                    </p>
+                  )}
                   {errors.amount && (
                     <p className="text-xs text-red-500 mt-1">{errors.amount}</p>
                   )}

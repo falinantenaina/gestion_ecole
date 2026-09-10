@@ -41,6 +41,30 @@ async function main() {
     },
   });
 
+  // Create secretary
+  await prisma.user.create({
+    data: {
+      email: "secretaire@ecole.fr",
+      password,
+      role: Role.SECRETARY,
+      firstName: "Rasoa",
+      lastName: "Andria",
+      isActive: true,
+    },
+  });
+
+  // Create comptable
+  await prisma.user.create({
+    data: {
+      email: "comptable@ecole.fr",
+      password,
+      role: Role.ACCOUNTANT,
+      firstName: "Hery",
+      lastName: "Ramananarivo",
+      isActive: true,
+    },
+  });
+
   // Create school year
   const schoolYear = await prisma.schoolYear.create({
     data: {

@@ -108,6 +108,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Vérifier le solde restant pour cet élève et ce type de frais
+    const totalPaidForType = await prisma.payment.aggregate({
+      where: { studentId, paymentTypeId },
+      _sum: { amount: true },
+    });
+    const alreadyPaid = totalPaidForType._sum.amount || 0;
+    const remaining = paymentType.amount - alreadyPaid;
+
+    if (remaining <= 0) {
+      return NextResponse.json(
+        { error: `Ce type de frais est déjà entièrement payé (${paymentType.amount.toLocaleString("fr-FR")} Ar)` },
+        { status: 400 }
+      );
+    }
+
+    if (amount > remaining) {
+      return NextResponse.json(
+        { error: `Le montant dépasse le solde restant. Reste à payer : ${remaining.toLocaleString("fr-FR")} Ar` },
+        { status: 400 }
+      );
+    }
+
     const result = await prisma.payment.create({
       data: {
         studentId,
