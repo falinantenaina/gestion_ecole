@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const schoolYearId = searchParams.get("schoolYearId");
     const month = searchParams.get("month");
     const search = searchParams.get("search");
+    const studentIdParam = searchParams.get("studentId");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const skip = (page - 1) * limit;
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
       status: { in: ["VALIDATED", "COMPLETED"] },
     };
     if (classId) enrollWhere.classId = classId;
+    if (studentIdParam) enrollWhere.studentId = studentIdParam;
 
     const enrollments = await prisma.enrollment.findMany({
       where: enrollWhere,

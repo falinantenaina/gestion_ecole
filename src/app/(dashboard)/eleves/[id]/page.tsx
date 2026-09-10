@@ -20,6 +20,10 @@ import {
   Pencil,
   Plus,
   FileText,
+  Wallet,
+  TrendingUp,
+  Receipt,
+  Banknote,
 } from "lucide-react";
 import StudentModal from "@/components/modals/student-modal";
 import PaymentModal from "@/components/modals/payment-modal";
@@ -89,7 +93,7 @@ const evaluationTypeLabels: Record<string, string> = {
 const tabs = [
   { id: "info", label: "Informations", icon: User },
   { id: "notes", label: "Notes", icon: Award },
-  { id: "paiements", label: "Paiements", icon: CreditCard },
+  { id: "ecolage", label: "Écolage", icon: CreditCard },
   { id: "absences", label: "Absences", icon: ClipboardCheck },
   { id: "inscriptions", label: "Inscriptions", icon: FileText },
 ] as const;
@@ -111,6 +115,11 @@ export default function EleveDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
+  const [ecolageData, setEcolageData] = useState<any>(null);
+  const [recentPayments, setRecentPayments] = useState<any[]>([]);
+  const [ecolageLoading, setEcolageLoading] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+
   const fetchStudent = useCallback(async () => {
     try {
       const res = await fetch(`/api/eleves/${id}`);
@@ -127,6 +136,32 @@ export default function EleveDetailPage() {
   useEffect(() => {
     fetchStudent();
   }, [fetchStudent]);
+
+  const fetchEcolage = useCallback(async () => {
+    if (activeTab !== "ecolage") return;
+    setEcolageLoading(true);
+    try {
+      const [ecolageRes, paymentsRes] = await Promise.all([
+        fetch(`/api/ecolage?studentId=${id}`),
+        fetch(`/api/paiements?studentId=${id}&limit=10`),
+      ]);
+      const ecolageJson = await ecolageRes.json();
+      const paymentsJson = await paymentsRes.json();
+      if (ecolageJson.data && ecolageJson.data.length > 0) {
+        setEcolageData(ecolageJson.data[0]);
+      }
+      setRecentPayments(paymentsJson.data || []);
+    } catch {
+      setEcolageData(null);
+      setRecentPayments([]);
+    } finally {
+      setEcolageLoading(false);
+    }
+  }, [activeTab, id]);
+
+  useEffect(() => {
+    fetchEcolage();
+  }, [fetchEcolage]);
 
   if (loading) {
     return (
@@ -611,91 +646,419 @@ export default function EleveDetailPage() {
             </div>
           )}
 
-          {activeTab === "paiements" && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="bg-green-50 rounded-lg px-4 py-2">
-                    <p className="text-xs text-green-600">Total payé</p>
-                    <p className="text-lg font-bold text-green-700">
-                      {new Intl.NumberFormat("fr-FR", {
-                        style: "currency",
-                        currency: "MGA",
-                        maximumFractionDigits: 0,
-                      }).format(totalPaid)}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg px-4 py-2">
-                    <p className="text-xs text-gray-500">Nombre de paiements</p>
-                    <p className="text-lg font-bold text-gray-700">
-                      {allPayments.length}
-                    </p>
-                  </div>
+          {activeTab === "ecolage" && (
+            <div className="space-y-6">
+              {ecolageLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-5 h-5 text-indigo-600 animate-spin" />
+                  <span className="ml-2 text-sm text-gray-500">
+                    Chargement des données d&apos;écolage...
+                  </span>
                 </div>
-                <button
-                  onClick={() => setPaymentModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Ajouter un paiement
-                </button>
-              </div>
+              ) : ecolageData ? (
+                (() => {
+                  const fmt = (v: number) =>
+                    new Intl.NumberFormat("fr-FR", {
+                      style: "currency",
+                      currency: "MGA",
+                      minimumFractionDigits: 0,
+                    }).format(v);
 
-              {allPayments.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-gray-500 border-b border-gray-100 bg-gray-50/50">
-                        <th className="px-4 py-3 font-medium">Type</th>
-                        <th className="px-4 py-3 font-medium">Montant</th>
-                        <th className="px-4 py-3 font-medium hidden sm:table-cell">
-                          Date
-                        </th>
-                        <th className="px-4 py-3 font-medium hidden md:table-cell">
-                          Mode
-                        </th>
-                        <th className="px-4 py-3 font-medium hidden lg:table-cell">
-                          Référence
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allPayments.map((payment) => (
-                        <tr
-                          key={payment.id}
-                          className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50"
-                        >
-                          <td className="px-4 py-3 font-medium text-gray-900">
-                            {payment.paymentType?.name || "—"}
-                          </td>
-                          <td className="px-4 py-3 font-semibold text-green-600">
-                            {new Intl.NumberFormat("fr-FR", {
-                              style: "currency",
-                              currency: "MGA",
-                              maximumFractionDigits: 0,
-                            }).format(payment.amount)}
-                          </td>
-                          <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">
-                            {new Date(
-                              payment.paymentDate
-                            ).toLocaleDateString("fr-FR")}
-                          </td>
-                          <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
-                            {paymentMethodLabels[payment.paymentMethod] ||
-                              payment.paymentMethod}
-                          </td>
-                          <td className="px-4 py-3 text-gray-500 hidden lg:table-cell font-mono text-xs">
-                            {payment.reference || "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                  const totalDue = ecolageData.totalDue as number;
+                  const totalPaid = ecolageData.totalPaid as number;
+                  const remaining = Math.max(0, totalDue - totalPaid);
+                  const collectionRate =
+                    totalDue > 0 ? Math.round((totalPaid / totalDue) * 100) : 0;
+                  const monthlyAmount = totalDue / 10;
+
+                  const monthNames = [
+                    "Septembre",
+                    "Octobre",
+                    "Novembre",
+                    "Décembre",
+                    "Janvier",
+                    "Février",
+                    "Mars",
+                    "Avril",
+                    "Mai",
+                    "Juin",
+                  ];
+                  const monthKeys = [
+                    "09",
+                    "10",
+                    "11",
+                    "12",
+                    "01",
+                    "02",
+                    "03",
+                    "04",
+                    "05",
+                    "06",
+                  ];
+
+                  const studentPayments = (ecolageData.payments || []) as {
+                    id: string;
+                    amount: number;
+                    paymentDate: string;
+                    paymentType?: { id: string; name: string; amount: number };
+                    paymentMethod: string;
+                    reference?: string | null;
+                  }[];
+
+                  const monthlyData = monthNames.map((name, idx) => {
+                    const key = monthKeys[idx];
+                    const monthPayments = studentPayments.filter((p) => {
+                      const d = new Date(p.paymentDate);
+                      const m = String(d.getMonth() + 1).padStart(2, "0");
+                      return m === key;
+                    });
+                    const paid = monthPayments.reduce(
+                      (s, p) => s + p.amount,
+                      0
+                    );
+                    const rest = Math.max(0, monthlyAmount - paid);
+                    let status: "paye" | "partiel" | "impaye";
+                    if (paid >= monthlyAmount) status = "paye";
+                    else if (paid > 0) status = "partiel";
+                    else status = "impaye";
+                    return {
+                      name,
+                      key,
+                      due: monthlyAmount,
+                      paid,
+                      rest,
+                      status,
+                      payments: monthPayments,
+                    };
+                  });
+
+                  const handlePayMonth = (monthKey: string) => {
+                    setSelectedMonth(monthKey);
+                    setPaymentModalOpen(true);
+                  };
+
+                  return (
+                    <>
+                      {/* Summary Cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <Wallet className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">
+                              Total annuel à payer
+                            </p>
+                            <p className="text-base font-bold text-gray-900">
+                              {fmt(totalDue)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
+                            <Banknote className="w-5 h-5 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">Total payé</p>
+                            <p className="text-base font-bold text-green-600">
+                              {fmt(totalPaid)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
+                            <Receipt className="w-5 h-5 text-red-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">
+                              Reste à payer
+                            </p>
+                            <p className="text-base font-bold text-red-600">
+                              {fmt(remaining)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+                            <TrendingUp className="w-5 h-5 text-indigo-600" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-500">
+                              Taux de recouvrement
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    collectionRate >= 80
+                                      ? "bg-green-500"
+                                      : collectionRate >= 50
+                                        ? "bg-amber-500"
+                                        : "bg-red-500"
+                                  }`}
+                                  style={{ width: `${Math.min(collectionRate, 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-sm font-bold text-gray-900">
+                                {collectionRate}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Payment Type Breakdown */}
+                      {ecolageData.paymentTypeBreakdown &&
+                        ecolageData.paymentTypeBreakdown.length > 0 && (
+                          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50">
+                              <h4 className="text-sm font-medium text-gray-700">
+                                Détail par type de frais
+                              </h4>
+                            </div>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="text-left text-gray-500 border-b border-gray-100">
+                                    <th className="px-4 py-2 font-medium">
+                                      Type
+                                    </th>
+                                    <th className="px-4 py-2 font-medium text-right">
+                                      Montant dû
+                                    </th>
+                                    <th className="px-4 py-2 font-medium text-right">
+                                      Payé
+                                    </th>
+                                    <th className="px-4 py-2 font-medium text-right">
+                                      Reste
+                                    </th>
+                                    <th className="px-4 py-2 font-medium text-center">
+                                      Statut
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {ecolageData.paymentTypeBreakdown.map(
+                                    (pt: any) => {
+                                      const ptRemaining = Math.max(
+                                        0,
+                                        pt.totalDue - pt.totalPaid
+                                      );
+                                      const ptStatus =
+                                        ptRemaining <= 0
+                                          ? "paye"
+                                          : pt.totalPaid > 0
+                                            ? "partiel"
+                                            : "impaye";
+                                      return (
+                                        <tr
+                                          key={pt.paymentTypeId}
+                                          className="border-b border-gray-50 last:border-0"
+                                        >
+                                          <td className="px-4 py-2 font-medium text-gray-900">
+                                            {pt.name}
+                                          </td>
+                                          <td className="px-4 py-2 text-right text-gray-700">
+                                            {fmt(pt.totalDue)}
+                                          </td>
+                                          <td className="px-4 py-2 text-right text-green-600 font-medium">
+                                            {fmt(pt.totalPaid)}
+                                          </td>
+                                          <td className="px-4 py-2 text-right text-red-600 font-medium">
+                                            {fmt(ptRemaining)}
+                                          </td>
+                                          <td className="px-4 py-2 text-center">
+                                            <span
+                                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                ptStatus === "paye"
+                                                  ? "bg-green-100 text-green-700"
+                                                  : ptStatus === "partiel"
+                                                    ? "bg-amber-100 text-amber-700"
+                                                    : "bg-red-100 text-red-700"
+                                              }`}
+                                            >
+                                              {ptStatus === "paye"
+                                                ? "Payé"
+                                                : ptStatus === "partiel"
+                                                  ? "Partiel"
+                                                  : "Impayé"}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      );
+                                    }
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Monthly Payments Table */}
+                      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50">
+                          <h4 className="text-sm font-medium text-gray-700">
+                            Échéancier mensuel (Septembre - Juin)
+                          </h4>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-left text-gray-500 border-b border-gray-100">
+                                <th className="px-4 py-3 font-medium">Mois</th>
+                                <th className="px-4 py-3 font-medium text-right">
+                                  Montant dû
+                                </th>
+                                <th className="px-4 py-3 font-medium text-right">
+                                  Montant payé
+                                </th>
+                                <th className="px-4 py-3 font-medium text-right">
+                                  Reste
+                                </th>
+                                <th className="px-4 py-3 font-medium text-center">
+                                  Statut
+                                </th>
+                                <th className="px-4 py-3 font-medium text-center">
+                                  Action
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {monthlyData.map((m) => (
+                                <tr
+                                  key={m.key}
+                                  className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50"
+                                >
+                                  <td className="px-4 py-3 font-medium text-gray-900">
+                                    {m.name}
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-gray-700">
+                                    {fmt(m.due)}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-medium text-green-600">
+                                    {fmt(m.paid)}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-medium text-red-600">
+                                    {fmt(m.rest)}
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    <span
+                                      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        m.status === "paye"
+                                          ? "bg-green-100 text-green-700"
+                                          : m.status === "partiel"
+                                            ? "bg-amber-100 text-amber-700"
+                                            : "bg-red-100 text-red-700"
+                                      }`}
+                                    >
+                                      {m.status === "paye"
+                                        ? "Payé"
+                                        : m.status === "partiel"
+                                          ? "Partiel"
+                                          : "Impayé"}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    {m.status !== "paye" && (
+                                      <button
+                                        onClick={() => handlePayMonth(m.key)}
+                                        className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                        Payer
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Recent Payments */}
+                      {recentPayments.length > 0 && (
+                        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50">
+                            <h4 className="text-sm font-medium text-gray-700">
+                              Derniers paiements
+                            </h4>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="text-left text-gray-500 border-b border-gray-100">
+                                  <th className="px-4 py-2 font-medium">
+                                    Date
+                                  </th>
+                                  <th className="px-4 py-2 font-medium">
+                                    Type
+                                  </th>
+                                  <th className="px-4 py-2 font-medium text-right">
+                                    Montant
+                                  </th>
+                                  <th className="px-4 py-2 font-medium hidden sm:table-cell">
+                                    Mode
+                                  </th>
+                                  <th className="px-4 py-2 font-medium hidden md:table-cell">
+                                    Référence
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {recentPayments.map((p: any) => (
+                                  <tr
+                                    key={p.id}
+                                    className="border-b border-gray-50 last:border-0"
+                                  >
+                                    <td className="px-4 py-2 text-gray-700">
+                                      {new Date(
+                                        p.paymentDate
+                                      ).toLocaleDateString("fr-FR")}
+                                    </td>
+                                    <td className="px-4 py-2 font-medium text-gray-900">
+                                      {p.paymentType?.name || "—"}
+                                    </td>
+                                    <td className="px-4 py-2 text-right font-semibold text-green-600">
+                                      {fmt(p.amount)}
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-500 hidden sm:table-cell">
+                                      {paymentMethodLabels[p.paymentMethod] ||
+                                        p.paymentMethod}
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-500 hidden md:table-cell font-mono text-xs">
+                                      {p.reference || "—"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Payment Modal */}
+                      <PaymentModal
+                        isOpen={paymentModalOpen}
+                        onClose={() => {
+                          setPaymentModalOpen(false);
+                          setSelectedMonth(null);
+                        }}
+                        studentId={student.id}
+                        onSuccess={() => {
+                          fetchEcolage();
+                          fetchStudent();
+                        }}
+                      />
+                    </>
+                  );
+                })()
               ) : (
                 <div className="text-center py-10 text-gray-400">
                   <CreditCard className="w-10 h-10 mx-auto mb-2" />
-                  <p className="text-sm">Aucun paiement enregistré</p>
+                  <p className="text-sm">
+                    Aucune donnée d&apos;écolage disponible
+                  </p>
                 </div>
               )}
             </div>
