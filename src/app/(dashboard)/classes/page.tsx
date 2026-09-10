@@ -1,29 +1,35 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Plus,
   Pencil,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
   BookOpen,
   Filter,
+  Users,
+  User,
+  ChevronRight,
 } from "lucide-react";
 import ClassModal from "@/components/modals/class-modal";
 import type { Class, SchoolYear, PaginatedResponse } from "@/types";
 
-type ClassRow = Class & {
+type ClassCard = Class & {
   enrollments?: { status: string }[];
   schoolYear?: SchoolYear;
+  teacherClasses?: { teacher?: { firstName: string; lastName: string } }[];
+  enrollmentCount?: number;
 };
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 20;
 
 export default function ClassesPage() {
-  const [classes, setClasses] = useState<ClassRow[]>([]);
+  const router = useRouter();
+  const [classes, setClasses] = useState<ClassCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
     total: 0,
@@ -66,7 +72,7 @@ export default function ClassesPage() {
       if (schoolYearFilter) params.set("schoolYearId", schoolYearFilter);
 
       const res = await fetch(`/api/classes?${params.toString()}`);
-      const data = (await res.json()) as PaginatedResponse<ClassRow>;
+      const data = (await res.json()) as PaginatedResponse<ClassCard>;
       setClasses(data.data || []);
       setPagination(data.pagination);
     } catch {
@@ -84,7 +90,9 @@ export default function ClassesPage() {
     setCurrentPage(1);
   }, [search, schoolYearFilter]);
 
-  function handleEdit(classe: ClassRow) {
+  function handleEdit(e: React.MouseEvent, classe: ClassCard) {
+    e.preventDefault();
+    e.stopPropagation();
     setEditingClass(classe);
     setModalOpen(true);
   }
@@ -94,7 +102,9 @@ export default function ClassesPage() {
     setModalOpen(true);
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(e: React.MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette classe ?")) return;
     setDeletingId(id);
     try {
@@ -103,6 +113,22 @@ export default function ClassesPage() {
     } finally {
       setDeletingId(null);
     }
+  }
+
+  function getEnrolledCount(classe: ClassCard): number {
+    return classe.enrollmentCount ?? classe.enrollments?.length ?? 0;
+  }
+
+  function getMainTeacher(classe: ClassCard): string | null {
+    const tc = classe.teacherClasses?.[0];
+    if (!tc?.teacher) return null;
+    return `${tc.teacher.firstName} ${tc.teacher.lastName}`;
+  }
+
+  function getCapacityPercent(classe: ClassCard): number {
+    const enrolled = getEnrolledCount(classe);
+    if (!classe.capacity) return 0;
+    return Math.min(100, Math.round((enrolled / classe.capacity) * 100));
   }
 
   const totalPages = pagination.totalPages;
@@ -160,13 +186,13 @@ export default function ClassesPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
+          <div className="flex items-center justify-center py-20">
             <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
             <span className="ml-2 text-sm text-gray-500">Chargement...</span>
           </div>
         ) : classes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-            <BookOpen className="w-12 h-12 mb-3" />
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+            <BookOpen className="w-14 h-14 mb-3" />
             <p className="text-sm font-medium">Aucune classe trouvée</p>
             <p className="text-xs mt-1">
               {search || schoolYearFilter
@@ -175,92 +201,99 @@ export default function ClassesPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 border-b border-gray-100 bg-gray-50/50">
-                  <th className="px-4 py-3 font-medium">Nom</th>
-                  <th className="px-4 py-3 font-medium hidden sm:table-cell">
-                    Niveau
-                  </th>
-                  <th className="px-4 py-3 font-medium hidden md:table-cell">
-                    Section
-                  </th>
-                  <th className="px-4 py-3 font-medium hidden lg:table-cell">
-                    Capacité
-                  </th>
-                  <th className="px-4 py-3 font-medium hidden lg:table-cell">
-                    Effectif
-                  </th>
-                  <th className="px-4 py-3 font-medium hidden xl:table-cell">
-                    Année Scolaire
-                  </th>
-                  <th className="px-4 py-3 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {classes.map((classe) => {
-                  const effectif = classe.enrollments?.length || 0;
-                  const isFull = effectif >= classe.capacity;
-                  return (
-                    <tr
-                      key={classe.id}
-                      className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
-                    >
-                      <td className="px-4 py-3 font-medium text-gray-900">
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {classes.map((classe) => {
+              const enrolled = getEnrolledCount(classe);
+              const capacityPct = getCapacityPercent(classe);
+              const isFull = enrolled >= classe.capacity;
+              const mainTeacher = getMainTeacher(classe);
+
+              return (
+                <Link
+                  key={classe.id}
+                  href={`/classes/${classe.id}`}
+                  className="group block bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md hover:border-indigo-300 transition-all duration-200"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors truncate">
                         {classe.name}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
                         {classe.level}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
-                        {classe.section || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">
-                        {classe.capacity}
-                      </td>
-                      <td className="px-4 py-3 hidden lg:table-cell">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                            isFull
-                              ? "bg-red-100 text-red-700"
-                              : "bg-green-100 text-green-700"
-                          }`}
-                        >
-                          {effectif}/{classe.capacity}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 hidden xl:table-cell">
-                        {classe.schoolYear?.name || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => handleEdit(classe)}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
-                            title="Modifier"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(classe.id)}
-                            disabled={deletingId === classe.id}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                            title="Supprimer"
-                          >
-                            {deletingId === classe.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-4 h-4" />
-                            )}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        {classe.section ? ` - ${classe.section}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 ml-2 shrink-0">
+                      <button
+                        onClick={(e) => handleEdit(e, classe)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors opacity-0 group-hover:opacity-100"
+                        title="Modifier"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDelete(e, classe.id)}
+                        disabled={deletingId === classe.id}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 opacity-0 group-hover:opacity-100"
+                        title="Supprimer"
+                      >
+                        {deletingId === classe.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {classe.schoolYear && (
+                    <div className="text-xs text-gray-500 mb-3">
+                      {classe.schoolYear.name}
+                    </div>
+                  )}
+
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+                      <span>Effectif</span>
+                      <span className={`font-medium ${isFull ? "text-red-600" : "text-gray-700"}`}>
+                        {enrolled}/{classe.capacity}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          capacityPct >= 90
+                            ? "bg-red-500"
+                            : capacityPct >= 70
+                            ? "bg-amber-500"
+                            : "bg-emerald-500"
+                        }`}
+                        style={{ width: `${capacityPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {mainTeacher && (
+                    <div className="flex items-center gap-2 text-xs text-gray-600 mb-3">
+                      <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="truncate">{mainTeacher}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <Users className="w-3.5 h-3.5" />
+                      <span>{enrolled} élève{enrolled !== 1 ? "s" : ""}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs font-medium text-indigo-600 group-hover:text-indigo-700">
+                      <span>Voir</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
 
@@ -270,13 +303,6 @@ export default function ClassesPage() {
               Page {pagination.page} sur {totalPages}
             </p>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
               {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                 let pageNum: number;
                 if (totalPages <= 5) {
@@ -302,15 +328,6 @@ export default function ClassesPage() {
                   </button>
                 );
               })}
-              <button
-                onClick={() =>
-                  setCurrentPage((p) => Math.min(totalPages, p + 1))
-                }
-                disabled={currentPage === totalPages}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
             </div>
           </div>
         )}

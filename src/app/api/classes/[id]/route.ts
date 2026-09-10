@@ -26,11 +26,48 @@ export async function GET(
       include: {
         schoolYear: true,
         enrollments: {
-          include: { student: true },
+          include: {
+            student: {
+              select: {
+                id: true,
+                matricule: true,
+                firstName: true,
+                lastName: true,
+                gender: true,
+                dateOfBirth: true,
+                phone: true,
+                email: true,
+                parentName: true,
+                parentPhone: true,
+              },
+            },
+          },
           where: { status: "VALIDATED" },
+          orderBy: { student: { lastName: "asc" } },
         },
-        teacherClasses: { include: { teacher: true } },
-        subjects: { include: { subject: true } },
+        teacherClasses: {
+          include: {
+            teacher: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                qualification: true,
+                specialization: true,
+              },
+            },
+          },
+        },
+        subjects: {
+          include: {
+            subject: true,
+          },
+        },
+        grades: {
+          select: { id: true },
+        },
       },
     });
 
@@ -38,7 +75,14 @@ export async function GET(
       return NextResponse.json({ error: "Classe non trouvée" }, { status: 404 });
     }
 
-    return NextResponse.json(classe);
+    const result = {
+      ...classe,
+      enrollmentCount: classe.enrollments.length,
+      gradesCount: classe.grades.length,
+      teachers: classe.teacherClasses.map((tc) => tc.teacher),
+    };
+
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la récupération de la classe:", error);

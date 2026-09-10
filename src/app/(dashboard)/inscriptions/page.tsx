@@ -7,13 +7,13 @@ import {
   Eye,
   CheckCircle2,
   XCircle,
-  Trash2,
   ChevronLeft,
   ChevronRight,
   Loader2,
   FileText,
   Filter,
-  MoreVertical,
+  ArrowRightLeft,
+  X,
 } from "lucide-react";
 import EnrollmentModal from "@/components/modals/enrollment-modal";
 import type { Enrollment, Class, SchoolYear, PaginatedResponse } from "@/types";
@@ -60,8 +60,20 @@ export default function InscriptionsPage() {
   const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [actionMenuId, setActionMenuId] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [transferEnrollment, setTransferEnrollment] =
+    useState<EnrollmentRow | null>(null);
+  const [transferClassId, setTransferClassId] = useState("");
+  const [transferSchoolYearId, setTransferSchoolYearId] = useState("");
+  const [transferring, setTransferring] = useState(false);
+
+  const [summaryStats, setSummaryStats] = useState({
+    pending: 0,
+    validated: 0,
+    total: 0,
+  });
 
   const fetchFilters = useCallback(async () => {
     try {
@@ -99,6 +111,15 @@ export default function InscriptionsPage() {
       const data = (await res.json()) as PaginatedResponse<EnrollmentRow>;
       setEnrollments(data.data || []);
       setPagination(data.pagination);
+
+      const allRes = await fetch(`/api/inscriptions?limit=1000`);
+      const allData = (await allRes.json()) as PaginatedResponse<EnrollmentRow>;
+      const all = allData.data || [];
+      setSummaryStats({
+        pending: all.filter((e) => e.status === "PENDING").length,
+        validated: all.filter((e) => e.status === "VALIDATED").length,
+        total: allData.pagination.total,
+      });
     } catch {
       setEnrollments([]);
     } finally {
@@ -116,7 +137,6 @@ export default function InscriptionsPage() {
 
   async function handleStatusChange(id: string, newStatus: string) {
     setProcessingId(id);
-    setActionMenuId(null);
     try {
       const res = await fetch(`/api/inscriptions/${id}`, {
         method: "PUT",
@@ -129,15 +149,32 @@ export default function InscriptionsPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Êtes-vous sûr de vouloir annuler cette inscription ?")) return;
-    setProcessingId(id);
-    setActionMenuId(null);
+  function openTransferModal(enrollment: EnrollmentRow) {
+    setTransferEnrollment(enrollment);
+    setTransferClassId("");
+    setTransferSchoolYearId(enrollment.schoolYearId || "");
+    setTransferModalOpen(true);
+  }
+
+  async function handleTransfer() {
+    if (!transferEnrollment || !transferClassId || !transferSchoolYearId) return;
+    setTransferring(true);
     try {
-      await fetch(`/api/inscriptions/${id}`, { method: "DELETE" });
-      fetchEnrollments();
+      const res = await fetch(`/api/inscriptions/${transferEnrollment.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classId: transferClassId,
+          schoolYearId: transferSchoolYearId,
+        }),
+      });
+      if (res.ok) {
+        setTransferModalOpen(false);
+        setTransferEnrollment(null);
+        fetchEnrollments();
+      }
     } finally {
-      setProcessingId(null);
+      setTransferring(false);
     }
   }
 
@@ -156,7 +193,8 @@ export default function InscriptionsPage() {
             Gestion des Inscriptions
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            {pagination.total} inscription{pagination.total !== 1 ? "s" : ""} au total
+            {pagination.total} inscription{pagination.total !== 1 ? "s" : ""} au
+            total
           </p>
         </div>
         <button
@@ -166,6 +204,48 @@ export default function InscriptionsPage() {
           <Plus className="w-4 h-4" />
           Nouvelle Inscription
         </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center">
+              <Loader2 className="w-5 h-5 text-yellow-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">En attente</p>
+              <p className="text-2xl font-bold text-yellow-600">
+                {summaryStats.pending}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Validées</p>
+              <p className="text-2xl font-bold text-green-600">
+                {summaryStats.validated}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Total</p>
+              <p className="text-2xl font-bold text-indigo-600">
+                {summaryStats.total}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100">
@@ -249,10 +329,18 @@ export default function InscriptionsPage() {
               <thead>
                 <tr className="text-left text-gray-500 border-b border-gray-100 bg-gray-50/50">
                   <th className="px-4 py-3 font-medium">Élève</th>
-                  <th className="px-4 py-3 font-medium hidden sm:table-cell">Matricule</th>
-                  <th className="px-4 py-3 font-medium hidden md:table-cell">Classe</th>
-                  <th className="px-4 py-3 font-medium hidden lg:table-cell">Année Scolaire</th>
-                  <th className="px-4 py-3 font-medium hidden md:table-cell">Date Inscription</th>
+                  <th className="px-4 py-3 font-medium hidden sm:table-cell">
+                    Matricule
+                  </th>
+                  <th className="px-4 py-3 font-medium hidden md:table-cell">
+                    Classe
+                  </th>
+                  <th className="px-4 py-3 font-medium hidden lg:table-cell">
+                    Année Scolaire
+                  </th>
+                  <th className="px-4 py-3 font-medium hidden md:table-cell">
+                    Date Inscription
+                  </th>
                   <th className="px-4 py-3 font-medium">Statut</th>
                   <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
@@ -285,18 +373,21 @@ export default function InscriptionsPage() {
                     <td className="px-4 py-3">
                       <span
                         className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                          statusStyles[enrollment.status] || "bg-gray-100 text-gray-700"
+                          statusStyles[enrollment.status] ||
+                          "bg-gray-100 text-gray-700"
                         }`}
                       >
                         {statusLabels[enrollment.status] || enrollment.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1 relative">
+                      <div className="flex items-center justify-end gap-1">
                         {enrollment.status === "PENDING" && (
                           <>
                             <button
-                              onClick={() => handleStatusChange(enrollment.id, "VALIDATED")}
+                              onClick={() =>
+                                handleStatusChange(enrollment.id, "VALIDATED")
+                              }
                               disabled={processingId === enrollment.id}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50"
                               title="Valider"
@@ -308,7 +399,9 @@ export default function InscriptionsPage() {
                               )}
                             </button>
                             <button
-                              onClick={() => handleDelete(enrollment.id)}
+                              onClick={() =>
+                                handleStatusChange(enrollment.id, "CANCELLED")
+                              }
                               disabled={processingId === enrollment.id}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
                               title="Annuler"
@@ -321,52 +414,16 @@ export default function InscriptionsPage() {
                             </button>
                           </>
                         )}
-                        <div className="relative">
+                        {enrollment.status === "VALIDATED" && (
                           <button
-                            onClick={() =>
-                              setActionMenuId(
-                                actionMenuId === enrollment.id ? null : enrollment.id
-                              )
-                            }
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                            title="Plus d'actions"
+                            onClick={() => openTransferModal(enrollment)}
+                            disabled={processingId === enrollment.id}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors disabled:opacity-50"
+                            title="Transférer"
                           >
-                            <MoreVertical className="w-4 h-4" />
+                            <ArrowRightLeft className="w-4 h-4" />
                           </button>
-                          {actionMenuId === enrollment.id && (
-                            <div className="absolute right-0 top-8 z-10 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]">
-                              <button
-                                onClick={() => setActionMenuId(null)}
-                                className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                              >
-                                <Eye className="w-4 h-4" />
-                                Voir détails
-                              </button>
-                              {enrollment.status === "VALIDATED" && (
-                                <button
-                                  onClick={() =>
-                                    handleStatusChange(enrollment.id, "COMPLETED")
-                                  }
-                                  disabled={processingId === enrollment.id}
-                                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
-                                >
-                                  <CheckCircle2 className="w-4 h-4" />
-                                  Marquer terminée
-                                </button>
-                              )}
-                              {enrollment.status !== "CANCELLED" && (
-                                <button
-                                  onClick={() => handleDelete(enrollment.id)}
-                                  disabled={processingId === enrollment.id}
-                                  className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                  Supprimer
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -427,6 +484,111 @@ export default function InscriptionsPage() {
           </div>
         )}
       </div>
+
+      {transferModalOpen && transferEnrollment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => {
+              if (!transferring) {
+                setTransferModalOpen(false);
+                setTransferEnrollment(null);
+              }
+            }}
+          />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Transférer l&apos;inscription
+              </h2>
+              <button
+                onClick={() => {
+                  setTransferModalOpen(false);
+                  setTransferEnrollment(null);
+                }}
+                disabled={transferring}
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                <p className="text-gray-500">Élève</p>
+                <p className="font-medium text-gray-900">
+                  {transferEnrollment.student?.firstName}{" "}
+                  {transferEnrollment.student?.lastName}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Classe actuelle: {transferEnrollment.class?.name || "—"}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nouvelle classe *
+                </label>
+                <select
+                  value={transferClassId}
+                  onChange={(e) => setTransferClassId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Sélectionner une classe...</option>
+                  {classes.map((classe) => (
+                    <option key={classe.id} value={classe.id}>
+                      {classe.name} ({classe.level})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Année scolaire *
+                </label>
+                <select
+                  value={transferSchoolYearId}
+                  onChange={(e) => setTransferSchoolYearId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Sélectionner une année...</option>
+                  {schoolYears.map((sy) => (
+                    <option key={sy.id} value={sy.id}>
+                      {sy.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTransferModalOpen(false);
+                    setTransferEnrollment(null);
+                  }}
+                  disabled={transferring}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleTransfer}
+                  disabled={
+                    transferring || !transferClassId || !transferSchoolYearId
+                  }
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {transferring && (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  )}
+                  Confirmer le transfert
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <EnrollmentModal
         isOpen={modalOpen}
