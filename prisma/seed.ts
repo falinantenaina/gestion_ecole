@@ -270,7 +270,6 @@ async function main() {
     prisma.paymentType.create({ data: { name: "Frais d'Inscription", description: "Frais d'inscription annuelle", amount: 10000 } }),
     prisma.paymentType.create({ data: { name: "Frais de Transport", description: "Transport scolaire", amount: 15000 } }),
     prisma.paymentType.create({ data: { name: "Frais de Cantine", description: "Restauration scolaire", amount: 20000 } }),
-    prisma.paymentType.create({ data: { name: "Frais de Bibliothèque", description: "Accès à la bibliothèque", amount: 5000 } }),
   ]);
 
   // Create some payments
