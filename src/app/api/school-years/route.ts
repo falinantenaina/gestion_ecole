@@ -12,6 +12,7 @@ export async function GET() {
 
     const schoolYears = await prisma.schoolYear.findMany({
       orderBy: { startDate: "desc" },
+      include: { terms: { orderBy: { startDate: "asc" } } },
     });
 
     return NextResponse.json({ data: schoolYears });

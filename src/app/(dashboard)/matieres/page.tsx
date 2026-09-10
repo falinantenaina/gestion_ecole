@@ -47,9 +47,13 @@ export default function MatieresPage() {
       if (search) params.set("search", search);
 
       const res = await fetch(`/api/matieres?${params.toString()}`);
+      if (!res.ok) {
+        setSubjects([]);
+        return;
+      }
       const data = (await res.json()) as PaginatedResponse<SubjectRow>;
       setSubjects(data.data || []);
-      setPagination(data.pagination);
+      if (data.pagination) setPagination(data.pagination);
     } catch {
       setSubjects([]);
     } finally {
@@ -86,7 +90,7 @@ export default function MatieresPage() {
     }
   }
 
-  const totalPages = pagination.totalPages;
+  const totalPages = pagination?.totalPages || 0;
 
   return (
     <div className="space-y-5">
@@ -97,7 +101,7 @@ export default function MatieresPage() {
             Gestion des Matières
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            {pagination.total} matière{pagination.total !== 1 ? "s" : ""} au total
+            {pagination?.total || 0} matière{(pagination?.total || 0) !== 1 ? "s" : ""} au total
           </p>
         </div>
         <button
