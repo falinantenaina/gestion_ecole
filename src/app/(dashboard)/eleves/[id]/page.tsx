@@ -119,6 +119,7 @@ export default function EleveDetailPage() {
   const [recentPayments, setRecentPayments] = useState<any[]>([]);
   const [ecolageLoading, setEcolageLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [schoolYearData, setSchoolYearData] = useState<any>(null);
 
   const fetchStudent = useCallback(async () => {
     try {
@@ -141,19 +142,24 @@ export default function EleveDetailPage() {
     if (activeTab !== "ecolage") return;
     setEcolageLoading(true);
     try {
-      const [ecolageRes, paymentsRes] = await Promise.all([
+      const [ecolageRes, paymentsRes, syRes] = await Promise.all([
         fetch(`/api/ecolage?studentId=${id}`),
         fetch(`/api/paiements?studentId=${id}&limit=10`),
+        fetch(`/api/school-years`),
       ]);
       const ecolageJson = await ecolageRes.json();
       const paymentsJson = await paymentsRes.json();
+      const syJson = await syRes.json();
       if (ecolageJson.data && ecolageJson.data.length > 0) {
         setEcolageData(ecolageJson.data[0]);
       }
       setRecentPayments(paymentsJson.data || []);
+      const currentSY = (syJson.data || []).find((y: any) => y.isCurrent);
+      setSchoolYearData(currentSY || null);
     } catch {
       setEcolageData(null);
       setRecentPayments([]);
+      setSchoolYearData(null);
     } finally {
       setEcolageLoading(false);
     }
@@ -669,32 +675,27 @@ export default function EleveDetailPage() {
                   const remaining = Math.max(0, totalDue - totalPaid);
                   const collectionRate =
                     totalDue > 0 ? Math.round((totalPaid / totalDue) * 100) : 0;
-                  const monthlyAmount = totalDue / 10;
 
-                  const monthNames = [
-                    "Septembre",
-                    "Octobre",
-                    "Novembre",
-                    "Décembre",
-                    "Janvier",
-                    "Février",
-                    "Mars",
-                    "Avril",
-                    "Mai",
-                    "Juin",
+                  // Dynamic months based on school year config
+                  const allMonthNames = [
+                    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+                    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
                   ];
-                  const monthKeys = [
-                    "09",
-                    "10",
-                    "11",
-                    "12",
-                    "01",
-                    "02",
-                    "03",
-                    "04",
-                    "05",
-                    "06",
+                  const allMonthKeys = [
+                    "01", "02", "03", "04", "05", "06",
+                    "07", "08", "09", "10", "11", "12",
                   ];
+                  const sm = schoolYearData?.startMonth || 10;
+                  const em = schoolYearData?.endMonth || 7;
+                  const monthNames: string[] = [];
+                  const monthKeys: string[] = [];
+                  let m = sm;
+                  for (let i = 0; i < 10; i++) {
+                    const idx = m - 1;
+                    monthNames.push(allMonthNames[idx]);
+                    monthKeys.push(allMonthKeys[idx]);
+                    m = m >= 12 ? 1 : m + 1;
+                  }
 
                   const studentPayments = (ecolageData.payments || []) as {
                     id: string;
@@ -717,7 +718,8 @@ export default function EleveDetailPage() {
                     const scolarite = breakdown.find((b) => b.name.includes("Scolarité"));
                     if (!scolarite) return [];
 
-                    const monthlyDue = scolarite.totalDue / 10;
+                    const numMonths = monthNames.length || 10;
+                    const monthlyDue = scolarite.totalDue / numMonths;
                     const totalPaidForScolarite = scolarite.totalPaid;
                     let remainingToDistribute = totalPaidForScolarite;
 

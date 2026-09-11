@@ -108,17 +108,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Vérifier le solde restant pour cet élève et ce type de frais
+    // Vérifier le solde restant via ClassFee (montant par classe)
+    const enrollment = await prisma.enrollment.findFirst({
+      where: {
+        studentId,
+        status: { in: ["VALIDATED", "COMPLETED"] },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!enrollment) {
+      return NextResponse.json(
+        { error: "Aucune inscription active trouvée pour cet élève" },
+        { status: 400 }
+      );
+    }
+
+    const classFee = await prisma.classFee.findFirst({
+      where: {
+        classId: enrollment.classId,
+        paymentTypeId,
+        schoolYearId: enrollment.schoolYearId,
+      },
+    });
+
+    if (!classFee) {
+      return NextResponse.json(
+        { error: "Aucun frais configuré pour cette classe et ce type" },
+        { status: 400 }
+      );
+    }
+
     const totalPaidForType = await prisma.payment.aggregate({
       where: { studentId, paymentTypeId },
       _sum: { amount: true },
     });
     const alreadyPaid = totalPaidForType._sum.amount || 0;
-    const remaining = paymentType.amount - alreadyPaid;
+    const remaining = Math.max(0, classFee.amount - alreadyPaid);
 
     if (remaining <= 0) {
       return NextResponse.json(
-        { error: `Ce type de frais est déjà entièrement payé (${paymentType.amount.toLocaleString("fr-FR")} Ar)` },
+        { error: `Ce type de frais est déjà entièrement payé (${classFee.amount.toLocaleString("fr-FR")} Ar)` },
         { status: 400 }
       );
     }

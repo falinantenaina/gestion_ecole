@@ -93,13 +93,15 @@ model User {
 // ──────────────────────────────────────────────
 
 model SchoolYear {
-  id        String   @id @default(uuid())
-  name      String   @unique // e.g. "2026-2027"
-  startDate DateTime
-  endDate   DateTime
-  isCurrent Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g. "2026-2027"
+  startDate   DateTime
+  endDate     DateTime
+  startMonth  Int      @default(9) // Mois de début (9=Septembre, 10=Octobre)
+  endMonth    Int      @default(6) // Mois de fin (6=Juin, 7=Juillet)
+  isCurrent   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   terms       Term[]
   classes     Class[]

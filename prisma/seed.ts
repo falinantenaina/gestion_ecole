@@ -65,12 +65,14 @@ async function main() {
     },
   });
 
-  // Create school year
+  // Create school year (Oct 2026 - July 2027)
   const schoolYear = await prisma.schoolYear.create({
     data: {
       name: "2026-2027",
-      startDate: new Date("2026-09-01"),
-      endDate: new Date("2027-06-30"),
+      startDate: new Date("2026-10-01"),
+      endDate: new Date("2027-07-31"),
+      startMonth: 10, // Octobre
+      endMonth: 7,    // Juillet
       isCurrent: true,
     },
   });
