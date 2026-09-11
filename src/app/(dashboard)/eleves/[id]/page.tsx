@@ -705,36 +705,70 @@ export default function EleveDetailPage() {
                     reference?: string | null;
                   }[];
 
-                  const monthlyData = monthNames.map((name, idx) => {
-                    const key = monthKeys[idx];
-                    const monthPayments = studentPayments.filter((p) => {
-                      const d = new Date(p.paymentDate);
-                      const m = String(d.getMonth() + 1).padStart(2, "0");
-                      return m === key;
-                    });
-                    const paid = monthPayments.reduce(
-                      (s, p) => s + p.amount,
-                      0
-                    );
-                    const rest = Math.max(0, monthlyAmount - paid);
-                    let status: "paye" | "partiel" | "impaye";
-                    if (paid >= monthlyAmount) status = "paye";
-                    else if (paid > 0) status = "partiel";
-                    else status = "impaye";
-                    return {
-                      name,
-                      key,
-                      due: monthlyAmount,
-                      paid,
-                      rest,
-                      status,
-                      payments: monthPayments,
-                    };
-                  });
+                  const monthlyData = (() => {
+                    // Get Scolarité fee type for monthly payments
+                    const breakdown = (ecolageData.paymentTypeBreakdown || []) as {
+                      paymentTypeId: string;
+                      name: string;
+                      totalDue: number;
+                      totalPaid: number;
+                      remaining: number;
+                    }[];
+                    const scolarite = breakdown.find((b) => b.name.includes("Scolarité"));
+                    if (!scolarite) return [];
 
-                  const handlePayMonth = (monthKey: string) => {
-                    setSelectedMonth(monthKey);
-                    setPaymentModalOpen(true);
+                    const monthlyDue = scolarite.totalDue / 10;
+                    const totalPaidForScolarite = scolarite.totalPaid;
+                    let remainingToDistribute = totalPaidForScolarite;
+
+                    return monthNames.map((name, idx) => {
+                      const due = monthlyDue;
+                      const allocated = Math.min(due, remainingToDistribute);
+                      remainingToDistribute -= allocated;
+                      const rest = Math.max(0, due - allocated);
+                      let status: "paye" | "partiel" | "impaye";
+                      if (allocated >= due) status = "paye";
+                      else if (allocated > 0) status = "partiel";
+                      else status = "impaye";
+                      return {
+                        name,
+                        key: monthKeys[idx],
+                        due,
+                        paid: allocated,
+                        rest,
+                        status,
+                        feeTypeId: scolarite.paymentTypeId,
+                      };
+                    });
+                  })();
+
+                  const handlePayMonth = async (monthKey: string, dueAmount: number, feeTypeId: string) => {
+                    if (!confirm(`Confirmer le paiement de ${fmt(dueAmount)} pour ce mois ?`)) return;
+
+                    try {
+                      setEcolageLoading(true);
+                      const res = await fetch("/api/paiements", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          studentId: id,
+                          paymentTypeId: feeTypeId,
+                          amount: dueAmount,
+                          paymentMethod: "CASH",
+                          notes: `Paiement écolage - mois ${monthKey}`,
+                        }),
+                      });
+                      if (!res.ok) {
+                        const err = await res.json();
+                        alert(err.error || "Erreur lors du paiement");
+                        return;
+                      }
+                      fetchEcolage();
+                    } catch {
+                      alert("Erreur lors du paiement");
+                    } finally {
+                      setEcolageLoading(false);
+                    }
                   };
 
                   return (
@@ -961,7 +995,7 @@ export default function EleveDetailPage() {
                                   <td className="px-4 py-3 text-center">
                                     {m.status !== "paye" && (
                                       <button
-                                        onClick={() => handlePayMonth(m.key)}
+                                        onClick={() => handlePayMonth(m.key, m.rest, m.feeTypeId)}
                                         className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors"
                                       >
                                         <Plus className="w-3 h-3" />
