@@ -185,6 +185,7 @@ export async function POST(request: NextRequest) {
         paymentMethod,
         reference,
         notes,
+        recordedBy: session.user?.name || session.user?.email || "Inconnu",
       },
       include: {
         student: { select: { id: true, firstName: true, lastName: true, matricule: true } },

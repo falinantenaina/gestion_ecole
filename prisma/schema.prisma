@@ -435,6 +435,7 @@ model Payment {
   paymentMethod PaymentMethod
   reference     String?
   notes         String?
+  recordedBy    String?       // Nom de l'utilisateur qui a enregistré le paiement
   paymentDate   DateTime      @default(now())
 
   student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)

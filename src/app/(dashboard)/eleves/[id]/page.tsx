@@ -1038,9 +1038,12 @@ export default function EleveDetailPage() {
                                   <th className="px-4 py-2 font-medium hidden sm:table-cell">
                                     Mode
                                   </th>
-                                  <th className="px-4 py-2 font-medium hidden md:table-cell">
-                                    Référence
-                                  </th>
+                                   <th className="px-4 py-2 font-medium hidden md:table-cell">
+                                     Référence
+                                   </th>
+                                   <th className="px-4 py-2 font-medium hidden lg:table-cell">
+                                     Enregistré par
+                                   </th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -1072,6 +1075,9 @@ export default function EleveDetailPage() {
                                     </td>
                                     <td className="px-4 py-2 text-gray-500 hidden md:table-cell font-mono text-xs">
                                       {p.reference || "—"}
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-500 hidden lg:table-cell text-xs">
+                                      {p.recordedBy || "—"}
                                     </td>
                                   </tr>
                                 ))}

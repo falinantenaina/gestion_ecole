@@ -225,6 +225,7 @@ export async function GET(request: NextRequest) {
           paymentMethod: p.paymentMethod,
           reference: p.reference,
           notes: p.notes,
+          recordedBy: p.recordedBy,
           paymentDate: p.paymentDate.toISOString(),
           paymentType: p.paymentType,
         })),

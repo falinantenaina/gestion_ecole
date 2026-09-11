@@ -387,28 +387,17 @@ export default function EcolagePage() {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Monthly only */}
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Total à payer</p>
-                <p className="text-lg font-bold text-gray-900">{formatAmount(stats.totalDue)}</p>
-              </div>
-            </div>
-          </div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-100 rounded-lg">
                 <DollarSign className="w-5 h-5 text-green-600" />
               </div>
               <div>
-                <p className="text-xs text-gray-500">Total perçu</p>
-                <p className="text-lg font-bold text-gray-900">{formatAmount(stats.totalPaid)}</p>
+                <p className="text-xs text-gray-500">Payés ce mois</p>
+                <p className="text-lg font-bold text-green-600">{stats.paidCount}</p>
               </div>
             </div>
           </div>
@@ -418,8 +407,19 @@ export default function EcolagePage() {
                 <AlertTriangle className="w-5 h-5 text-orange-600" />
               </div>
               <div>
-                <p className="text-xs text-gray-500">Total impayé</p>
-                <p className="text-lg font-bold text-gray-900">{formatAmount(stats.totalUnpaid)}</p>
+                <p className="text-xs text-gray-500">Impayés ce mois</p>
+                <p className="text-lg font-bold text-orange-600">{stats.unpaidCount}</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Partiels</p>
+                <p className="text-lg font-bold text-yellow-600">{stats.partialCount}</p>
               </div>
             </div>
           </div>
@@ -429,8 +429,8 @@ export default function EcolagePage() {
                 <TrendingUp className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-xs text-gray-500">Taux de recouvrement</p>
-                <p className="text-lg font-bold text-gray-900">{stats.collectionRate}%</p>
+                <p className="text-xs text-gray-500">Total élèves</p>
+                <p className="text-lg font-bold text-blue-600">{stats.totalCount}</p>
               </div>
             </div>
           </div>
