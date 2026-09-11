@@ -32,7 +32,26 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const allPaymentTypes = await prisma.paymentType.findMany({
+    // Get all class fees for this school year (amounts per class per fee type)
+    const classFees = await prisma.classFee.findMany({
+      where: { schoolYearId: currentYear.id },
+      include: {
+        paymentType: { select: { id: true, name: true } },
+        class: { select: { id: true, name: true } },
+      },
+    });
+
+    // Build a lookup: classId -> paymentTypeId -> amount
+    const feeAmountByClass: Record<string, Record<string, number>> = {};
+    for (const cf of classFees) {
+      if (!feeAmountByClass[cf.classId]) feeAmountByClass[cf.classId] = {};
+      feeAmountByClass[cf.classId][cf.paymentTypeId] = cf.amount;
+    }
+
+    // Get all unique payment types that have class fees
+    const uniqueFeeTypeIds = [...new Set(classFees.map((cf) => cf.paymentTypeId))];
+    const feeTypes = await prisma.paymentType.findMany({
+      where: { id: { in: uniqueFeeTypeIds } },
       orderBy: { name: "asc" },
     });
 
@@ -114,19 +133,24 @@ export async function GET(request: NextRequest) {
 
     for (const enrollment of enrollments) {
       const studentPayments = paymentByStudent[enrollment.studentId] || [];
+      const classFeesForStudent = feeAmountByClass[enrollment.classId] || {};
 
-      const paymentTypeBreakdown = allPaymentTypes.map((pt) => {
-        const paidForType = studentPayments
-          .filter((p) => p.paymentTypeId === pt.id)
-          .reduce((sum, p) => sum + p.amount, 0);
-        return {
-          paymentTypeId: pt.id,
-          name: pt.name,
-          totalDue: pt.amount,
-          totalPaid: paidForType,
-          remaining: Math.max(0, pt.amount - paidForType),
-        };
-      });
+      // Only show fee types that are configured for this student's class
+      const paymentTypeBreakdown = feeTypes
+        .filter((ft) => classFeesForStudent[ft.id] !== undefined)
+        .map((ft) => {
+          const due = classFeesForStudent[ft.id];
+          const paidForType = studentPayments
+            .filter((p) => p.paymentTypeId === ft.id)
+            .reduce((sum, p) => sum + p.amount, 0);
+          return {
+            paymentTypeId: ft.id,
+            name: ft.name,
+            totalDue: due,
+            totalPaid: paidForType,
+            remaining: Math.max(0, due - paidForType),
+          };
+        });
 
       const totalDue = paymentTypeBreakdown.reduce((s, b) => s + b.totalDue, 0);
       const totalPaid = paymentTypeBreakdown.reduce((s, b) => s + b.totalPaid, 0);
@@ -148,9 +172,6 @@ export async function GET(request: NextRequest) {
             )
           : null;
 
-      const filteredPayments =
-        status !== "all" && studentStatus !== status ? null : studentPayments;
-
       if (status !== "all" && studentStatus !== status) continue;
 
       studentFeesList.push({
@@ -163,7 +184,7 @@ export async function GET(request: NextRequest) {
         remaining,
         status: studentStatus,
         lastPaymentDate: lastPayment?.paymentDate?.toISOString() || null,
-        payments: (filteredPayments || studentPayments).map((p) => ({
+        payments: studentPayments.map((p) => ({
           id: p.id,
           amount: p.amount,
           paymentMethod: p.paymentMethod,

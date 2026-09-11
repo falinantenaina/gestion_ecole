@@ -267,21 +267,76 @@ async function main() {
   // Create payment types
   const paymentTypes = await Promise.all([
     prisma.paymentType.create({ data: { name: "Frais de Scolarité", description: "Frais annuel de scolarité", amount: 50000 } }),
-    prisma.paymentType.create({ data: { name: "Frais d'Inscription", description: "Frais d'inscription annuelle", amount: 10000 } }),
-    prisma.paymentType.create({ data: { name: "Frais de Transport", description: "Transport scolaire", amount: 15000 } }),
-    prisma.paymentType.create({ data: { name: "Frais de Cantine", description: "Restauration scolaire", amount: 20000 } }),
+    prisma.paymentType.create({ data: { name: "Frais d'Inscription", description: "Frais d'inscription annuelle", amount: 15000 } }),
   ]);
 
-  // Create some payments
+  // Create class fees per class
+  const feeConfigs = [
+    // Collège classes (0-3)
+    { classIndex: 0, fees: [
+      { typeIndex: 0, amount: 45000 }, // Scolarité
+      { typeIndex: 1, amount: 15000 }, // Inscription
+    ]},
+    { classIndex: 1, fees: [
+      { typeIndex: 0, amount: 48000 },
+      { typeIndex: 1, amount: 15000 },
+    ]},
+    { classIndex: 2, fees: [
+      { typeIndex: 0, amount: 50000 },
+      { typeIndex: 1, amount: 18000 },
+    ]},
+    { classIndex: 3, fees: [
+      { typeIndex: 0, amount: 52000 },
+      { typeIndex: 1, amount: 18000 },
+    ]},
+    // Lycée classes (4-6)
+    { classIndex: 4, fees: [
+      { typeIndex: 0, amount: 60000 },
+      { typeIndex: 1, amount: 20000 },
+    ]},
+    { classIndex: 5, fees: [
+      { typeIndex: 0, amount: 65000 },
+      { typeIndex: 1, amount: 22000 },
+    ]},
+    { classIndex: 6, fees: [
+      { typeIndex: 0, amount: 70000 },
+      { typeIndex: 1, amount: 25000 },
+    ]},
+  ];
+
+  for (const config of feeConfigs) {
+    for (const fee of config.fees) {
+      await prisma.classFee.create({
+        data: {
+          classId: classes[config.classIndex].id,
+          paymentTypeId: paymentTypes[fee.typeIndex].id,
+          amount: fee.amount,
+          schoolYearId: schoolYear.id,
+        },
+      });
+    }
+  }
+
+  // Create some payments (using class fee amounts)
   const paymentMethods = ["CASH", "BANK_TRANSFER", "MOBILE_MONEY", "CREDIT_CARD"] as const;
   for (let i = 0; i < 8; i++) {
     const student = students[i % students.length];
     const pt = paymentTypes[i % paymentTypes.length];
+    // Get the class fee amount for this student's class
+    const enrollment = await prisma.enrollment.findFirst({
+      where: { studentId: student.id, status: "VALIDATED" },
+    });
+    const classFee = enrollment
+      ? await prisma.classFee.findFirst({
+          where: { classId: enrollment.classId, paymentTypeId: pt.id, schoolYearId: schoolYear.id },
+        })
+      : null;
+    const amount = classFee?.amount || pt.amount;
     await prisma.payment.create({
       data: {
         studentId: student.id,
         paymentTypeId: pt.id,
-        amount: pt.amount,
+        amount,
         paymentMethod: paymentMethods[i % paymentMethods.length],
         paymentDate: new Date(2026, 8, Math.floor(Math.random() * 28) + 1),
         notes: `Paiement ${pt.name}`,

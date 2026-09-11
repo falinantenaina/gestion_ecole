@@ -10,11 +10,33 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ remaining: null });
   }
 
-  const paymentType = await prisma.paymentType.findUnique({
-    where: { id: paymentTypeId },
+  // Find student's enrollment to get their class
+  const enrollment = await prisma.enrollment.findFirst({
+    where: {
+      studentId,
+      status: { in: ["VALIDATED", "COMPLETED"] },
+    },
+    include: {
+      class: { select: { id: true } },
+      schoolYear: { select: { id: true, isCurrent: true } },
+    },
+    orderBy: { createdAt: "desc" },
   });
 
-  if (!paymentType) {
+  if (!enrollment) {
+    return NextResponse.json({ remaining: null });
+  }
+
+  // Get class fee amount for this class + payment type
+  const classFee = await prisma.classFee.findFirst({
+    where: {
+      classId: enrollment.classId,
+      paymentTypeId,
+      schoolYearId: enrollment.schoolYearId,
+    },
+  });
+
+  if (!classFee) {
     return NextResponse.json({ remaining: null });
   }
 
@@ -24,7 +46,7 @@ export async function GET(request: NextRequest) {
   });
 
   const paid = totalPaid._sum.amount || 0;
-  const remaining = Math.max(0, paymentType.amount - paid);
+  const remaining = Math.max(0, classFee.amount - paid);
 
-  return NextResponse.json({ remaining, total: paymentType.amount, paid });
+  return NextResponse.json({ remaining, total: classFee.amount, paid });
 }

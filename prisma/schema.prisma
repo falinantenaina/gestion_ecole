@@ -105,6 +105,7 @@ model SchoolYear {
   classes     Class[]
   enrollments Enrollment[]
   grades      Grade[]
+  classFees   ClassFee[]
 
   @@map("school_years")
 }
@@ -233,6 +234,7 @@ model Class {
   subjects      ClassSubject[]
   grades        Grade[]
   attendance    Attendance[]
+  classFees     ClassFee[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -396,12 +398,31 @@ model PaymentType {
   description String?
   amount      Float
 
-  payments Payment[]
+  payments    Payment[]
+  classFees   ClassFee[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("payment_types")
+}
+
+model ClassFee {
+  id            String   @id @default(uuid())
+  classId       String
+  paymentTypeId String
+  amount        Float
+  schoolYearId  String
+
+  class       Class       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  paymentType PaymentType @relation(fields: [paymentTypeId], references: [id], onDelete: Cascade)
+  schoolYear  SchoolYear  @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([classId, paymentTypeId, schoolYearId])
+  @@map("class_fees")
 }
 
 model Payment {

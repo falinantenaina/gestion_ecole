@@ -20,6 +20,7 @@ import {
   Menu,
   X,
   Banknote,
+  Coins,
 } from "lucide-react";
 import type { Role } from "@/types";
 
@@ -40,6 +41,7 @@ const allNavigation = [
   { name: "Inscriptions", href: "/inscriptions", icon: FileText, roles: ["ADMIN", "DIRECTOR", "SECRETARY"] as Role[] },
   { name: "Notes", href: "/notes", icon: Award, roles: ["ADMIN", "DIRECTOR", "TEACHER", "STUDENT", "PARENT"] as Role[] },
   { name: "Écolage", href: "/ecolage", icon: Banknote, roles: ["ADMIN", "DIRECTOR", "SECRETARY", "ACCOUNTANT"] as Role[] },
+  { name: "Frais par Classe", href: "/frais", icon: Coins, roles: ["ADMIN", "DIRECTOR", "SECRETARY"] as Role[] },
   { name: "Paiements", href: "/paiements", icon: CreditCard, roles: ["ADMIN", "DIRECTOR", "SECRETARY", "ACCOUNTANT", "STUDENT", "PARENT"] as Role[] },
   { name: "Rapports", href: "/rapports", icon: BarChart3, roles: ["ADMIN", "DIRECTOR"] as Role[] },
 ];
