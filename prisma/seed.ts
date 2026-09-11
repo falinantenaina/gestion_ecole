@@ -84,14 +84,14 @@ async function main() {
 
   // Create subjects
   const subjects = await Promise.all([
-    prisma.subject.create({ data: { name: "Mathématiques", code: "MATH", coefficient: 4, description: "Mathématiques" } }),
-    prisma.subject.create({ data: { name: "Français", code: "FRAN", coefficient: 3, description: "Français" } }),
-    prisma.subject.create({ data: { name: "Anglais", code: "ANGL", coefficient: 2, description: "Anglais" } }),
-    prisma.subject.create({ data: { name: "Histoire-Géographie", code: "HIST", coefficient: 2, description: "Histoire-Géographie" } }),
-    prisma.subject.create({ data: { name: "Physique-Chimie", code: "PHYC", coefficient: 3, description: "Physique-Chimie" } }),
-    prisma.subject.create({ data: { name: "SVT", code: "SVT", coefficient: 2, description: "Sciences de la Vie et de la Terre" } }),
-    prisma.subject.create({ data: { name: "Informatique", code: "INFO", coefficient: 2, description: "Informatique" } }),
-    prisma.subject.create({ data: { name: "EPS", code: "EPS", coefficient: 1, description: "Éducation Physique et Sportive" } }),
+    prisma.subject.create({ data: { name: "Mathématiques", code: "MATH", description: "Mathématiques" } }),
+    prisma.subject.create({ data: { name: "Français", code: "FRAN", description: "Français" } }),
+    prisma.subject.create({ data: { name: "Anglais", code: "ANGL", description: "Anglais" } }),
+    prisma.subject.create({ data: { name: "Histoire-Géographie", code: "HIST", description: "Histoire-Géographie" } }),
+    prisma.subject.create({ data: { name: "Physique-Chimie", code: "PHYC", description: "Physique-Chimie" } }),
+    prisma.subject.create({ data: { name: "SVT", code: "SVT", description: "Sciences de la Vie et de la Terre" } }),
+    prisma.subject.create({ data: { name: "Informatique", code: "INFO", description: "Informatique" } }),
+    prisma.subject.create({ data: { name: "EPS", code: "EPS", description: "Éducation Physique et Sportive" } }),
   ]);
 
   // Create classes
@@ -218,7 +218,7 @@ async function main() {
     await prisma.enrollment.create({
       data: {
         studentId: student.id,
-        classId: classes[sd.classIndex].id,/
+        classId: classes[sd.classIndex].id,
         schoolYearId: schoolYear.id,
         status: EnrollmentStatus.VALIDATED,
       },
@@ -256,7 +256,14 @@ async function main() {
   // Create some grades
   const evalTypes = ["HOMEWORK", "QUIZ", "EXAM"] as const;
   for (const student of students.slice(0, 8)) {
+    const studentIdx = students.indexOf(student);
+    const classId = classes[studentData[studentIdx]?.classIndex ?? 0].id;
     for (const sub of subjects.slice(0, 5)) {
+      // Get coefficient from ClassSubject
+      const classSubject = await prisma.classSubject.findFirst({
+        where: { classId, subjectId: sub.id },
+      });
+      const coeff = classSubject?.coefficient || 1;
       for (const evalType of evalTypes) {
         const score = Math.floor(Math.random() * 15) + 5;
         await prisma.grade.create({
@@ -266,11 +273,11 @@ async function main() {
             teacherId: teachers[0].id,
             schoolYearId: schoolYear.id,
             termId: term1.id,
-            classId: classes[studentData[students.indexOf(student)]?.classIndex ?? 0].id,
+            classId,
             evaluationType: evalType as any,
             score,
             maxScore: 20,
-            coefficient: sub.coefficient,
+            coefficient: coeff,
             evaluationName: `${evalType} ${sub.name}`,
           },
         });

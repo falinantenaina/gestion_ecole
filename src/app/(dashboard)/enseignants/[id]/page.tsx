@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   ArrowLeft,
   Users,
@@ -15,8 +16,10 @@ import {
   Loader2,
   AlertCircle,
   Briefcase,
+  Plus,
+  X,
 } from "lucide-react";
-import type { Teacher, Grade, TeacherSubject, TeacherClass, User } from "@/types";
+import type { Teacher, Grade, TeacherSubject, TeacherClass, User, Class } from "@/types";
 
 interface TeacherDetail extends Omit<Teacher, "user"> {
   user?: User;
@@ -29,26 +32,92 @@ export default function EnseignantDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
+  const { data: session } = useSession();
 
   const [teacher, setTeacher] = useState<TeacherDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function fetchTeacher() {
-      try {
-        const res = await fetch(`/api/enseignants/${id}`);
-        if (!res.ok) throw new Error("Enseignant non trouvé");
-        const data = await res.json();
-        setTeacher(data);
-      } catch {
-        setError("Erreur lors du chargement des données de l'enseignant");
-      } finally {
-        setLoading(false);
-      }
+  // Class assignment
+  const [showClassModal, setShowClassModal] = useState(false);
+  const [allClasses, setAllClasses] = useState<Class[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState("");
+  const [assigningClass, setAssigningClass] = useState(false);
+  const [removingClassId, setRemovingClassId] = useState<string | null>(null);
+
+  const fetchTeacher = async () => {
+    try {
+      const res = await fetch(`/api/enseignants/${id}`);
+      if (!res.ok) throw new Error("Enseignant non trouvé");
+      const data = await res.json();
+      setTeacher(data);
+    } catch {
+      setError("Erreur lors du chargement des données de l'enseignant");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchTeacher();
   }, [id]);
+
+  const fetchAllClasses = async () => {
+    try {
+      const res = await fetch("/api/classes?limit=500");
+      const data = await res.json();
+      setAllClasses(data.data || []);
+    } catch {
+      setAllClasses([]);
+    }
+  };
+
+  useEffect(() => {
+    if (showClassModal) {
+      fetchAllClasses();
+    }
+  }, [showClassModal]);
+
+  async function handleAssignClass() {
+    if (!selectedClassId) return;
+    setAssigningClass(true);
+    try {
+      const res = await fetch("/api/teacher-classes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teacherId: id, classId: selectedClassId }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Erreur lors de l'assignation");
+        return;
+      }
+      setShowClassModal(false);
+      setSelectedClassId("");
+      fetchTeacher();
+    } finally {
+      setAssigningClass(false);
+    }
+  }
+
+  async function handleRemoveClass(classId: string) {
+    if (!confirm("Êtes-vous sûr de vouloir retirer cette classe ?")) return;
+    setRemovingClassId(classId);
+    try {
+      const res = await fetch(
+        `/api/teacher-classes?teacherId=${id}&classId=${classId}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Erreur lors du retrait");
+        return;
+      }
+      fetchTeacher();
+    } finally {
+      setRemovingClassId(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -209,29 +278,58 @@ export default function EnseignantDetailPage() {
             </div>
           )}
 
-          {classes.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-4">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
                 <Users className="w-4 h-4 text-indigo-500" />
                 Classes assignées
               </h3>
+              {(session?.user?.role === "ADMIN" || session?.user?.role === "SECRETARY") && (
+                <button
+                  onClick={() => setShowClassModal(true)}
+                  className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Assigner
+                </button>
+              )}
+            </div>
+            {classes.length > 0 ? (
               <div className="space-y-2">
                 {classes.map((cls) => (
                   <div
                     key={cls?.id}
-                    className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+                    className="flex items-center justify-between p-2 bg-gray-50 rounded-lg group"
                   >
-                    <span className="text-sm font-medium text-gray-900">
-                      {cls?.name}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {cls?.level}
-                    </span>
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">
+                        {cls?.name}
+                      </span>
+                      <span className="text-xs text-gray-500 ml-2">
+                        {cls?.level}
+                      </span>
+                    </div>
+                    {(session?.user?.role === "ADMIN" || session?.user?.role === "SECRETARY") && (
+                      <button
+                        onClick={() => handleRemoveClass(cls!.id)}
+                        disabled={removingClassId === cls?.id}
+                        className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                        title="Retirer la classe"
+                      >
+                        {removingClassId === cls?.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <X className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-gray-400 italic">Aucune classe assignée</p>
+            )}
+          </div>
         </div>
 
         <div className="lg:col-span-2 space-y-5">
@@ -313,6 +411,101 @@ export default function EnseignantDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Assign class modal */}
+      {showClassModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => {
+              setShowClassModal(false);
+              setSelectedClassId("");
+            }}
+          />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Plus className="w-5 h-5 text-indigo-600" />
+                Assigner une classe
+              </h2>
+              <button
+                onClick={() => {
+                  setShowClassModal(false);
+                  setSelectedClassId("");
+                }}
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              {allClasses.length === 0 ? (
+                <div className="text-center py-6 text-gray-500">
+                  <p className="text-sm">Aucune classe disponible</p>
+                </div>
+              ) : (
+                <>
+                  <div className="text-sm text-gray-500">
+                    {allClasses.length} classe{allClasses.length > 1 ? "s" : ""} disponible{allClasses.length > 1 ? "s" : ""}
+                  </div>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {allClasses.map((cls) => {
+                      const isAssigned = classes.some((tc) => tc?.id === cls.id);
+                      return (
+                        <button
+                          key={cls.id}
+                          onClick={() => !isAssigned && setSelectedClassId(cls.id)}
+                          disabled={isAssigned}
+                          className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                            isAssigned
+                              ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
+                              : selectedClassId === cls.id
+                              ? "border-indigo-500 bg-indigo-50"
+                              : "border-gray-200 hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{cls.name}</p>
+                              <p className="text-xs text-gray-500">{cls.level}{cls.section ? ` - ${cls.section}` : ""}</p>
+                            </div>
+                            {isAssigned && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                                Assignée
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 p-5 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowClassModal(false);
+                  setSelectedClassId("");
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleAssignClass}
+                disabled={!selectedClassId || assigningClass}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {assigningClass && <Loader2 className="w-4 h-4 animate-spin" />}
+                Assigner
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

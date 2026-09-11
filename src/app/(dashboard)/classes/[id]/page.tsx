@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   ArrowLeft,
   BookOpen,
@@ -17,6 +18,7 @@ import {
   X,
   Clock,
   Award,
+  UserPlus,
 } from "lucide-react";
 import type {
   Class,
@@ -57,6 +59,7 @@ export default function ClassDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
+  const { data: session } = useSession();
 
   const [classe, setClasse] = useState<ClassDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,6 +74,13 @@ export default function ClassDetailPage() {
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
+
+  // Teacher assignment
+  const [showTeacherModal, setShowTeacherModal] = useState(false);
+  const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
+  const [selectedTeacherId, setSelectedTeacherId] = useState("");
+  const [assigningTeacher, setAssigningTeacher] = useState(false);
+  const [removingTeacherId, setRemovingTeacherId] = useState<string | null>(null);
 
   // Grades tab
   const [grades, setGrades] = useState<
@@ -133,6 +143,63 @@ export default function ClassDetailPage() {
       fetchAllStudents();
     }
   }, [showEnrollModal, fetchAllStudents]);
+
+  const fetchAllTeachers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/enseignants?limit=500");
+      const data = await res.json();
+      setAllTeachers(data.data || []);
+    } catch {
+      setAllTeachers([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showTeacherModal) {
+      fetchAllTeachers();
+    }
+  }, [showTeacherModal, fetchAllTeachers]);
+
+  async function handleAssignTeacher() {
+    if (!selectedTeacherId) return;
+    setAssigningTeacher(true);
+    try {
+      const res = await fetch("/api/teacher-classes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teacherId: selectedTeacherId, classId: id }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Erreur lors de l'assignation");
+        return;
+      }
+      setShowTeacherModal(false);
+      setSelectedTeacherId("");
+      fetchClass();
+    } finally {
+      setAssigningTeacher(false);
+    }
+  }
+
+  async function handleRemoveTeacher(teacherId: string) {
+    if (!confirm("Êtes-vous sûr de vouloir retirer cet enseignant de la classe ?")) return;
+    setRemovingTeacherId(teacherId);
+    try {
+      const res = await fetch(
+        `/api/teacher-classes?teacherId=${teacherId}&classId=${id}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Erreur lors du retrait");
+        return;
+      }
+      fetchClass();
+    } finally {
+      setRemovingTeacherId(null);
+    }
+  }
 
   async function handleEnroll() {
     if (!selectedStudentId) return;
@@ -335,13 +402,40 @@ export default function ClassDetailPage() {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-              <p className="text-xs font-medium text-gray-500 uppercase">Enseignant(s)</p>
-              <div className="mt-1">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-gray-500 uppercase">Enseignant(s)</p>
+                {(session?.user?.role === "ADMIN" || session?.user?.role === "SECRETARY") && (
+                  <button
+                    onClick={() => setShowTeacherModal(true)}
+                    className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    Assigner
+                  </button>
+                )}
+              </div>
+              <div className="mt-2 space-y-1">
                 {classe.teachers && classe.teachers.length > 0 ? (
-                  classe.teachers.map((t, i) => (
-                    <p key={i} className="text-sm font-medium text-gray-900">
-                      {t.firstName} {t.lastName}
-                    </p>
+                  classe.teachers.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between group">
+                      <p className="text-sm font-medium text-gray-900">
+                        {t.firstName} {t.lastName}
+                      </p>
+                      {(session?.user?.role === "ADMIN" || session?.user?.role === "SECRETARY") && (
+                        <button
+                          onClick={() => handleRemoveTeacher(t.id)}
+                          disabled={removingTeacherId === t.id}
+                          className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                          title="Retirer l'enseignant"
+                        >
+                          {removingTeacherId === t.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <X className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </div>
                   ))
                 ) : (
                   <p className="text-sm text-gray-400 italic mt-1">Non assigné</p>
@@ -855,6 +949,103 @@ export default function ClassDetailPage() {
               >
                 {enrolling && <Loader2 className="w-4 h-4 animate-spin" />}
                 Inscrire l&apos;élève
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign teacher modal */}
+      {showTeacherModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => {
+              setShowTeacherModal(false);
+              setSelectedTeacherId("");
+            }}
+          />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-indigo-600" />
+                Assigner un enseignant
+              </h2>
+              <button
+                onClick={() => {
+                  setShowTeacherModal(false);
+                  setSelectedTeacherId("");
+                }}
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              {allTeachers.length === 0 ? (
+                <div className="text-center py-6 text-gray-500">
+                  <p className="text-sm">Aucun enseignant disponible</p>
+                </div>
+              ) : (
+                <>
+                  <div className="text-sm text-gray-500">
+                    {allTeachers.length} enseignant{allTeachers.length > 1 ? "s" : ""} disponible{allTeachers.length > 1 ? "s" : ""}
+                  </div>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {allTeachers.map((t) => {
+                      const isAssigned = classe.teachers?.some((et) => et.id === t.id);
+                      return (
+                        <button
+                          key={t.id}
+                          onClick={() => !isAssigned && setSelectedTeacherId(t.id)}
+                          disabled={isAssigned}
+                          className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                            isAssigned
+                              ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
+                              : selectedTeacherId === t.id
+                              ? "border-indigo-500 bg-indigo-50"
+                              : "border-gray-200 hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">
+                                {t.firstName} {t.lastName}
+                              </p>
+                              <p className="text-xs text-gray-500">{t.email || t.employeeId}</p>
+                            </div>
+                            {isAssigned && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                                Assigné
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 p-5 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowTeacherModal(false);
+                  setSelectedTeacherId("");
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleAssignTeacher}
+                disabled={!selectedTeacherId || assigningTeacher}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {assigningTeacher && <Loader2 className="w-4 h-4 animate-spin" />}
+                Assigner
               </button>
             </div>
           </div>
