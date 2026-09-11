@@ -21,6 +21,7 @@ import {
   User,
 } from "lucide-react";
 import StudentModal from "@/components/modals/student-modal";
+import { useSchoolYear } from "@/components/providers/school-year-provider";
 import type { Student, Class, PaginatedResponse } from "@/types";
 
 type StudentRow = Student & {
@@ -31,6 +32,7 @@ type StudentRow = Student & {
 const ITEMS_PER_PAGE = 10;
 
 export default function ElevesPage() {
+  const { selectedYear } = useSchoolYear();
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
@@ -79,6 +81,7 @@ export default function ElevesPage() {
       if (search) params.set("search", search);
       if (genderFilter) params.set("gender", genderFilter);
       if (classFilter) params.set("classId", classFilter);
+      if (selectedYear?.id) params.set("schoolYearId", selectedYear.id);
 
       const res = await fetch(`/api/eleves?${params.toString()}`);
       const data = (await res.json()) as PaginatedResponse<StudentRow>;
@@ -89,7 +92,7 @@ export default function ElevesPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, search, genderFilter, classFilter]);
+  }, [currentPage, search, genderFilter, classFilter, selectedYear?.id]);
 
   useEffect(() => {
     fetchStudents();

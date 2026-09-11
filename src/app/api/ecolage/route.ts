@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || "all";
     const classId = searchParams.get("classId");
     const schoolYearId = searchParams.get("schoolYearId");
-    const month = searchParams.get("month");
+    const month = searchParams.get("month"); // Format: "2026-10"
     const search = searchParams.get("search");
     const studentIdParam = searchParams.get("studentId");
     const page = parseInt(searchParams.get("page") || "1");
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all class fees for this school year (amounts per class per fee type)
+    // Get all class fees for this school year
     const classFees = await prisma.classFee.findMany({
       where: { schoolYearId: currentYear.id },
       include: {
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Build a lookup: classId -> paymentTypeId -> amount
+    // Build lookup: classId -> paymentTypeId -> amount (monthly for Scolarité)
     const feeAmountByClass: Record<string, Record<string, number>> = {};
     for (const cf of classFees) {
       if (!feeAmountByClass[cf.classId]) feeAmountByClass[cf.classId] = {};
@@ -73,33 +73,34 @@ export async function GET(request: NextRequest) {
       orderBy: { student: { lastName: "asc" } },
     });
 
-    let studentPaymentWhere: any = {};
-    if (month) {
-      const [yearStr, monthStr] = month.split("-");
-      const year = parseInt(yearStr);
-      const m = parseInt(monthStr);
-      const startDate = new Date(year, m - 1, 1);
-      const endDate = new Date(year, m, 0, 23, 59, 59, 999);
-      studentPaymentWhere.paymentDate = { gte: startDate, lte: endDate };
-    }
-
+    // Get all payments for these students
     const studentIds = enrollments.map((e) => e.studentId);
-
     const allPayments = await prisma.payment.findMany({
-      where: {
-        studentId: { in: studentIds },
-        ...studentPaymentWhere,
-      },
+      where: { studentId: { in: studentIds } },
       include: {
         paymentType: { select: { id: true, name: true, amount: true } },
       },
-      orderBy: { paymentDate: "desc" },
+      orderBy: { paymentDate: "asc" }, // Ascending to distribute chronologically
     });
 
     const paymentByStudent: Record<string, typeof allPayments> = {};
     for (const p of allPayments) {
       if (!paymentByStudent[p.studentId]) paymentByStudent[p.studentId] = [];
       paymentByStudent[p.studentId].push(p);
+    }
+
+    // Calculate number of months in school year
+    const numMonths = (currentYear.endMonth >= currentYear.startMonth)
+      ? currentYear.endMonth - currentYear.startMonth + 1
+      : 12 - currentYear.startMonth + currentYear.endMonth + 1;
+
+    // If month filter is set, calculate which month index it is
+    let monthIndex = -1;
+    if (month) {
+      const [yearStr, monthStr] = month.split("-");
+      const filterMonth = parseInt(monthStr);
+      // Calculate month index (0-based) from startMonth
+      monthIndex = ((filterMonth - currentYear.startMonth + 12) % 12);
     }
 
     type StudentFees = {
@@ -112,6 +113,7 @@ export async function GET(request: NextRequest) {
         totalDue: number;
         totalPaid: number;
         remaining: number;
+        monthlyAmount: number | null;
       }[];
       totalDue: number;
       totalPaid: number;
@@ -135,11 +137,13 @@ export async function GET(request: NextRequest) {
       const studentPayments = paymentByStudent[enrollment.studentId] || [];
       const classFeesForStudent = feeAmountByClass[enrollment.classId] || {};
 
-      // Only show fee types that are configured for this student's class
       const paymentTypeBreakdown = feeTypes
         .filter((ft) => classFeesForStudent[ft.id] !== undefined)
         .map((ft) => {
-          const due = classFeesForStudent[ft.id];
+          const monthlyAmount = classFeesForStudent[ft.id];
+          const due = ft.name.includes("Scolarité")
+            ? monthlyAmount * numMonths
+            : monthlyAmount;
           const paidForType = studentPayments
             .filter((p) => p.paymentTypeId === ft.id)
             .reduce((sum, p) => sum + p.amount, 0);
@@ -149,6 +153,7 @@ export async function GET(request: NextRequest) {
             totalDue: due,
             totalPaid: paidForType,
             remaining: Math.max(0, due - paidForType),
+            monthlyAmount: ft.name.includes("Scolarité") ? monthlyAmount : null,
           };
         });
 
@@ -156,13 +161,43 @@ export async function GET(request: NextRequest) {
       const totalPaid = paymentTypeBreakdown.reduce((s, b) => s + b.totalPaid, 0);
       const remaining = Math.max(0, totalDue - totalPaid);
 
+      // Calculate monthly status if month filter is set
       let studentStatus: "paid" | "unpaid" | "partial";
-      if (remaining <= 0) {
-        studentStatus = "paid";
-      } else if (totalPaid > 0) {
-        studentStatus = "partial";
+
+      if (month && monthIndex >= 0) {
+        // For monthly filter: check if scolarité for this month is paid
+        const scolarite = paymentTypeBreakdown.find((b) => b.name.includes("Scolarité"));
+        if (scolarite && scolarite.monthlyAmount) {
+          // Amount that should be paid by this month = monthlyAmount * (monthIndex + 1)
+          const expectedPaid = scolarite.monthlyAmount * (monthIndex + 1);
+          // Amount actually paid for scolarité
+          const paidScolarite = scolarite.totalPaid;
+
+          if (paidScolarite >= expectedPaid) {
+            studentStatus = "paid";
+          } else if (paidScolarite >= expectedPaid - scolarite.monthlyAmount) {
+            studentStatus = "partial";
+          } else {
+            studentStatus = "unpaid";
+          }
+        } else {
+          // No scolarité configured, check inscription
+          const inscription = paymentTypeBreakdown.find((b) => b.name.includes("Inscription"));
+          if (inscription) {
+            studentStatus = inscription.remaining <= 0 ? "paid" : "unpaid";
+          } else {
+            studentStatus = remaining <= 0 ? "paid" : "unpaid";
+          }
+        }
       } else {
-        studentStatus = "unpaid";
+        // No month filter: use overall status
+        if (remaining <= 0) {
+          studentStatus = "paid";
+        } else if (totalPaid > 0) {
+          studentStatus = "partial";
+        } else {
+          studentStatus = "unpaid";
+        }
       }
 
       const lastPayment =

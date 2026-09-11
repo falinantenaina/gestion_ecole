@@ -714,12 +714,14 @@ export default function EleveDetailPage() {
                       totalDue: number;
                       totalPaid: number;
                       remaining: number;
+                      monthlyAmount: number | null;
                     }[];
                     const scolarite = breakdown.find((b) => b.name.includes("Scolarité"));
                     if (!scolarite) return [];
 
                     const numMonths = monthNames.length || 10;
-                    const monthlyDue = scolarite.totalDue / numMonths;
+                    // Use monthlyAmount from API (already stored as monthly), or calculate from total
+                    const monthlyDue = scolarite.monthlyAmount || (scolarite.totalDue / numMonths);
                     const totalPaidForScolarite = scolarite.totalPaid;
                     let remainingToDistribute = totalPaidForScolarite;
 
@@ -1050,7 +1052,13 @@ export default function EleveDetailPage() {
                                     <td className="px-4 py-2 text-gray-700">
                                       {new Date(
                                         p.paymentDate
-                                      ).toLocaleDateString("fr-FR")}
+                                      ).toLocaleString("fr-FR", {
+                                        day: "2-digit",
+                                        month: "2-digit",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
                                     </td>
                                     <td className="px-4 py-2 font-medium text-gray-900">
                                       {p.paymentType?.name || "—"}

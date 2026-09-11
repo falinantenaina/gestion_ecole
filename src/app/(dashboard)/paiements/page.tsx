@@ -17,6 +17,7 @@ import {
   FileText,
 } from "lucide-react";
 import PaymentModal from "@/components/modals/payment-modal";
+import { useSchoolYear } from "@/components/providers/school-year-provider";
 import type {
   Payment,
   PaymentType,
@@ -46,6 +47,7 @@ const paymentMethodStyles: Record<PaymentMethod, string> = {
 };
 
 export default function PaiementsPage() {
+  const { selectedYear } = useSchoolYear();
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
@@ -81,6 +83,7 @@ export default function PaiementsPage() {
       if (methodFilter) params.set("paymentMethod", methodFilter);
       if (dateFrom) params.set("dateFrom", dateFrom);
       if (dateTo) params.set("dateTo", dateTo);
+      if (selectedYear?.id) params.set("schoolYearId", selectedYear.id);
 
       const res = await fetch(`/api/paiements?${params.toString()}`);
       const data = (await res.json()) as PaginatedResponse<PaymentRow>;
@@ -93,6 +96,7 @@ export default function PaiementsPage() {
         if (methodFilter) allParams.set("paymentMethod", methodFilter);
         if (dateFrom) allParams.set("dateFrom", dateFrom);
         if (dateTo) allParams.set("dateTo", dateTo);
+        if (selectedYear?.id) allParams.set("schoolYearId", selectedYear.id);
 
         const statsRes = await fetch(
           `/api/paiements/stats?${allParams.toString()}`
@@ -120,7 +124,7 @@ export default function PaiementsPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, search, methodFilter, dateFrom, dateTo]);
+  }, [currentPage, search, methodFilter, dateFrom, dateTo, selectedYear?.id]);
 
   useEffect(() => {
     fetchPayments();

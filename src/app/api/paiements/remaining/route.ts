@@ -10,7 +10,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ remaining: null });
   }
 
-  // Find student's enrollment to get their class
   const enrollment = await prisma.enrollment.findFirst({
     where: {
       studentId,
@@ -18,7 +17,7 @@ export async function GET(request: NextRequest) {
     },
     include: {
       class: { select: { id: true } },
-      schoolYear: { select: { id: true, isCurrent: true } },
+      schoolYear: { select: { id: true, startMonth: true, endMonth: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -27,18 +26,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ remaining: null });
   }
 
-  // Get class fee amount for this class + payment type
   const classFee = await prisma.classFee.findFirst({
     where: {
       classId: enrollment.classId,
       paymentTypeId,
       schoolYearId: enrollment.schoolYearId,
     },
+    include: { paymentType: { select: { name: true } } },
   });
 
   if (!classFee) {
     return NextResponse.json({ remaining: null });
   }
+
+  // Calculate total: Scolarité = monthly × numMonths, others = amount directly
+  const sy = enrollment.schoolYear;
+  const numMonths = (sy.endMonth >= sy.startMonth)
+    ? sy.endMonth - sy.startMonth + 1
+    : 12 - sy.startMonth + sy.endMonth + 1;
+
+  const totalDue = classFee.paymentType.name.includes("Scolarité")
+    ? classFee.amount * numMonths
+    : classFee.amount;
 
   const totalPaid = await prisma.payment.aggregate({
     where: { studentId, paymentTypeId },
@@ -46,7 +55,7 @@ export async function GET(request: NextRequest) {
   });
 
   const paid = totalPaid._sum.amount || 0;
-  const remaining = Math.max(0, classFee.amount - paid);
+  const remaining = Math.max(0, totalDue - paid);
 
-  return NextResponse.json({ remaining, total: classFee.amount, paid });
+  return NextResponse.json({ remaining, total: totalDue, paid, monthlyAmount: classFee.amount });
 }

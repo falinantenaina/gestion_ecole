@@ -35,7 +35,7 @@ export default function PaymentModal({
     paymentMethod: "CASH" as PaymentMethod,
     reference: "",
     notes: "",
-    paymentDate: new Date().toISOString().split("T")[0],
+    paymentDate: new Date().toISOString().slice(0, 16),
   });
 
   const [students, setStudents] = useState<Student[]>([]);
@@ -97,8 +97,8 @@ export default function PaymentModal({
         reference: payment.reference || "",
         notes: payment.notes || "",
         paymentDate: payment.paymentDate
-          ? new Date(payment.paymentDate).toISOString().split("T")[0]
-          : new Date().toISOString().split("T")[0],
+          ? new Date(payment.paymentDate).toISOString().slice(0, 16)
+          : new Date().toISOString().slice(0, 16),
       });
       if (student) {
         setStudentSearch(`${student.firstName} ${student.lastName}`);
@@ -112,7 +112,7 @@ export default function PaymentModal({
         paymentMethod: "CASH",
         reference: "",
         notes: "",
-        paymentDate: new Date().toISOString().split("T")[0],
+        paymentDate: new Date().toISOString().slice(0, 16),
       }));
       const found = students.find((s) => s.id === studentId);
       if (found) {
@@ -128,7 +128,7 @@ export default function PaymentModal({
         paymentMethod: "CASH",
         reference: "",
         notes: "",
-        paymentDate: new Date().toISOString().split("T")[0],
+        paymentDate: new Date().toISOString().slice(0, 16),
       });
       setStudentSearch("");
     }
@@ -433,10 +433,10 @@ export default function PaymentModal({
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Date de Paiement *
+                    Date et Heure de Paiement *
                   </label>
                   <input
-                    type="date"
+                    type="datetime-local"
                     value={formData.paymentDate}
                     onChange={(e) => {
                       setFormData((prev) => ({

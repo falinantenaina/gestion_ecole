@@ -272,36 +272,36 @@ async function main() {
     prisma.paymentType.create({ data: { name: "Frais d'Inscription", description: "Frais d'inscription annuelle", amount: 15000 } }),
   ]);
 
-  // Create class fees per class
+  // Create class fees per class (Scolarité = monthly amount, Inscription = total)
   const feeConfigs = [
     // Collège classes (0-3)
     { classIndex: 0, fees: [
-      { typeIndex: 0, amount: 45000 }, // Scolarité
-      { typeIndex: 1, amount: 15000 }, // Inscription
+      { typeIndex: 0, amount: 4500 }, // Scolarité 4500/mois × 10 = 45 000/an
+      { typeIndex: 1, amount: 15000 }, // Inscription 15 000 total
     ]},
     { classIndex: 1, fees: [
-      { typeIndex: 0, amount: 48000 },
+      { typeIndex: 0, amount: 4800 }, // 48 000/an
       { typeIndex: 1, amount: 15000 },
     ]},
     { classIndex: 2, fees: [
-      { typeIndex: 0, amount: 50000 },
+      { typeIndex: 0, amount: 5000 }, // 50 000/an
       { typeIndex: 1, amount: 18000 },
     ]},
     { classIndex: 3, fees: [
-      { typeIndex: 0, amount: 52000 },
+      { typeIndex: 0, amount: 5200 }, // 52 000/an
       { typeIndex: 1, amount: 18000 },
     ]},
     // Lycée classes (4-6)
     { classIndex: 4, fees: [
-      { typeIndex: 0, amount: 60000 },
+      { typeIndex: 0, amount: 6000 }, // 60 000/an
       { typeIndex: 1, amount: 20000 },
     ]},
     { classIndex: 5, fees: [
-      { typeIndex: 0, amount: 65000 },
+      { typeIndex: 0, amount: 6500 }, // 65 000/an
       { typeIndex: 1, amount: 22000 },
     ]},
     { classIndex: 6, fees: [
-      { typeIndex: 0, amount: 70000 },
+      { typeIndex: 0, amount: 7000 }, // 70 000/an
       { typeIndex: 1, amount: 25000 },
     ]},
   ];

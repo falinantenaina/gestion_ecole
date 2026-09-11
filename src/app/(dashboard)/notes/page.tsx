@@ -21,6 +21,7 @@ import {
   Save,
 } from "lucide-react";
 import GradeModal from "@/components/modals/grade-modal";
+import { useSchoolYear } from "@/components/providers/school-year-provider";
 import type {
   Grade,
   Class,
@@ -64,6 +65,7 @@ function getRankBadge(rank: number) {
 }
 
 export default function NotesPage() {
+  const { selectedYear } = useSchoolYear();
   const [grades, setGrades] = useState<GradeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: ITEMS_PER_PAGE, totalPages: 0 });
@@ -152,6 +154,7 @@ export default function NotesPage() {
       if (classFilter) params.set("classId", classFilter);
       if (subjectFilter) params.set("subjectId", subjectFilter);
       if (termFilter) params.set("termId", termFilter);
+      if (selectedYear?.id) params.set("schoolYearId", selectedYear.id);
 
       const res = await fetch(`/api/notes?${params.toString()}`);
       const data = (await res.json()) as PaginatedResponse<GradeRow>;
@@ -174,7 +177,7 @@ export default function NotesPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, search, classFilter, subjectFilter, termFilter]);
+  }, [currentPage, search, classFilter, subjectFilter, termFilter, selectedYear?.id]);
 
   const fetchFilters = useCallback(async () => {
     try {

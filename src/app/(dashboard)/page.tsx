@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useSchoolYear } from "@/components/providers/school-year-provider";
 import {
   GraduationCap,
   Users,
@@ -14,8 +16,6 @@ import {
   Clock,
   CheckCircle,
 } from "lucide-react";
-
-import { useSession } from "next-auth/react";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("fr-FR", {
@@ -293,18 +293,21 @@ function AccountantDashboard({ data }: { data: any }) {
 
 export default function DashboardPage() {
   const { data: session } = useSession();
+  const { selectedYear } = useSchoolYear();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/dashboard")
+    const params = new URLSearchParams();
+    if (selectedYear?.id) params.set("schoolYearId", selectedYear.id);
+    fetch(`/api/dashboard?${params.toString()}`)
       .then((res) => res.json())
       .then((json) => {
         setData(json);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [selectedYear]);
 
   if (loading) {
     return (

@@ -130,6 +130,7 @@ export async function POST(request: NextRequest) {
         paymentTypeId,
         schoolYearId: enrollment.schoolYearId,
       },
+      include: { paymentType: { select: { name: true } } },
     });
 
     if (!classFee) {
@@ -139,16 +140,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get school year for numMonths calculation
+    const schoolYear = await prisma.schoolYear.findUnique({
+      where: { id: enrollment.schoolYearId },
+    });
+
+    const numMonths = schoolYear
+      ? (schoolYear.endMonth >= schoolYear.startMonth
+          ? schoolYear.endMonth - schoolYear.startMonth + 1
+          : 12 - schoolYear.startMonth + schoolYear.endMonth + 1)
+      : 10;
+
+    // Scolarité = monthly × numMonths, others = amount directly
+    const totalDue = classFee.paymentType.name.includes("Scolarité")
+      ? classFee.amount * numMonths
+      : classFee.amount;
+
     const totalPaidForType = await prisma.payment.aggregate({
       where: { studentId, paymentTypeId },
       _sum: { amount: true },
     });
     const alreadyPaid = totalPaidForType._sum.amount || 0;
-    const remaining = Math.max(0, classFee.amount - alreadyPaid);
+    const remaining = Math.max(0, totalDue - alreadyPaid);
 
     if (remaining <= 0) {
       return NextResponse.json(
-        { error: `Ce type de frais est déjà entièrement payé (${classFee.amount.toLocaleString("fr-FR")} Ar)` },
+        { error: `Ce type de frais est déjà entièrement payé (${totalDue.toLocaleString("fr-FR")} Ar)` },
         { status: 400 }
       );
     }

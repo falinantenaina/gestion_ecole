@@ -27,6 +27,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { useSchoolYear } from "@/components/providers/school-year-provider";
 
 type TabKey = "academic" | "financial" | "administrative";
 
@@ -169,6 +170,7 @@ function ExportButton({ onClick }: { onClick: () => void }) {
 }
 
 export default function RapportsPage() {
+  const { selectedYear } = useSchoolYear();
   const [activeTab, setActiveTab] = useState<TabKey>("academic");
 
   const [classData, setClassData] = useState<ClassAverage[]>([]);
@@ -187,9 +189,11 @@ export default function RapportsPage() {
   const fetchAcademic = useCallback(async () => {
     setLoadingAcademic(true);
     try {
+      const params = new URLSearchParams();
+      if (selectedYear?.id) params.set("schoolYearId", selectedYear.id);
       const [classesRes, studentsRes] = await Promise.all([
-        fetch("/api/rapports?type=classes"),
-        fetch("/api/rapports?type=students"),
+        fetch(`/api/rapports?type=classes&${params.toString()}`),
+        fetch(`/api/rapports?type=students&${params.toString()}`),
       ]);
       const classesJson = await classesRes.json();
       const studentsJson = await studentsRes.json();
@@ -201,12 +205,14 @@ export default function RapportsPage() {
     } finally {
       setLoadingAcademic(false);
     }
-  }, []);
+  }, [selectedYear?.id]);
 
   const fetchFinancial = useCallback(async () => {
     setLoadingFinancial(true);
     try {
-      const res = await fetch("/api/rapports?type=financial");
+      const params = new URLSearchParams();
+      if (selectedYear?.id) params.set("schoolYearId", selectedYear.id);
+      const res = await fetch(`/api/rapports?type=financial&${params.toString()}`);
       const json = await res.json();
       setFinancialData(json.data || null);
     } catch {
@@ -214,7 +220,7 @@ export default function RapportsPage() {
     } finally {
       setLoadingFinancial(false);
     }
-  }, []);
+  }, [selectedYear?.id]);
 
   const fetchAdministrative = useCallback(async () => {
     setLoadingAdministrative(true);

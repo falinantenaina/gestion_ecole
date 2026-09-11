@@ -78,6 +78,8 @@ export default function FraisPage() {
   const [newTypeName, setNewTypeName] = useState("");
   const [showNewTypeInline, setShowNewTypeInline] = useState(false);
 
+  const isScolarite = paymentTypes.find((pt) => pt.id === newPaymentTypeId)?.name.includes("Scolarité") || false;
+
   const [editAmount, setEditAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -152,7 +154,7 @@ export default function FraisPage() {
     fees: classFees.filter((f) => f.classId === cls.id),
     totalPerStudent: classFees
       .filter((f) => f.classId === cls.id)
-      .reduce((sum, f) => sum + f.amount, 0),
+      .reduce((sum, f) => sum + (f.paymentType.name.includes("Scolarité") ? f.amount * 10 : f.amount), 0),
   }));
 
   const availableClassesForNew = applyToAll
@@ -428,7 +430,14 @@ export default function FraisPage() {
                           {fee.paymentType.name}
                         </td>
                         <td className="px-5 py-3 text-right font-medium text-gray-900">
-                          {formatAmount(fee.amount)}
+                          {fee.paymentType.name.includes("Scolarité") ? (
+                            <span>
+                              {formatAmount(fee.amount)} <span className="text-xs text-gray-400">/mois</span>
+                              <span className="text-xs text-gray-400 block">= {formatAmount(fee.amount * 10)}/an</span>
+                            </span>
+                          ) : (
+                            formatAmount(fee.amount)
+                          )}
                         </td>
                         <td className="px-5 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -529,19 +538,21 @@ export default function FraisPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Montant (Ar) *
+                  {isScolarite ? "Montant par mois (Ar) *" : "Montant total (Ar) *"}
                 </label>
                 <input
                   type="number"
                   value={newAmount}
                   onChange={(e) => setNewAmount(e.target.value)}
-                  placeholder="Ex: 50000"
+                  placeholder={isScolarite ? "Ex: 5000" : "Ex: 15000"}
                   min="0"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 {newAmount && parseFloat(newAmount) > 0 && (
                   <p className="text-xs text-gray-500 mt-1">
-                    {formatAmount(parseFloat(newAmount))}
+                    {isScolarite
+                      ? `${formatAmount(parseFloat(newAmount))} × 10 mois = ${formatAmount(parseFloat(newAmount) * 10)}/an`
+                      : formatAmount(parseFloat(newAmount))}
                   </p>
                 )}
               </div>

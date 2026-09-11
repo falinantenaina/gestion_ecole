@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { Search, Bell, ChevronDown, LogOut, User } from "lucide-react";
+import { Search, Bell, ChevronDown, LogOut, User, Calendar } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { useSchoolYear } from "@/components/providers/school-year-provider";
 import type { Role } from "@/types";
 
 interface HeaderProps {
@@ -25,14 +26,19 @@ const pageTitles: Record<string, string> = {
   "/ecolage": "Écolage",
   "/paiements": "Paiements",
   "/rapports": "Rapports",
+  "/frais": "Frais par Classe",
+  "/school-years": "Années Scolaires",
 };
 
 export default function Header({ user }: HeaderProps) {
   const pathname = usePathname();
+  const { schoolYears, selectedYear, setSelectedYear } = useSchoolYear();
   const [searchQuery, setSearchQuery] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [syMenuOpen, setSyMenuOpen] = useState(false);
   const [notificationCount] = useState(3);
   const menuRef = useRef<HTMLDivElement>(null);
+  const syMenuRef = useRef<HTMLDivElement>(null);
 
   const pageTitle =
     pageTitles[pathname] ||
@@ -56,6 +62,9 @@ export default function Header({ user }: HeaderProps) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false);
       }
+      if (syMenuRef.current && !syMenuRef.current.contains(event.target as Node)) {
+        setSyMenuOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -67,7 +76,51 @@ export default function Header({ user }: HeaderProps) {
         <h1 className="text-xl font-semibold text-gray-800">{pageTitle}</h1>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        {/* Sélecteur année scolaire */}
+        {schoolYears.length > 0 && (
+          <div className="relative" ref={syMenuRef}>
+            <button
+              onClick={() => setSyMenuOpen(!syMenuOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+            >
+              <Calendar className="w-4 h-4 text-indigo-600" />
+              <span className="text-sm font-medium text-indigo-700">
+                {selectedYear?.name || "Année scolaire"}
+              </span>
+              <ChevronDown className={`w-3.5 h-3.5 text-indigo-500 transition-transform ${syMenuOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {syMenuOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
+                <div className="px-4 py-2 border-b border-gray-100">
+                  <p className="text-xs text-gray-500">Année scolaire</p>
+                </div>
+                {schoolYears.map((sy) => (
+                  <button
+                    key={sy.id}
+                    onClick={() => {
+                      setSelectedYear(sy);
+                      setSyMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                      selectedYear?.id === sy.id
+                        ? "bg-indigo-50 text-indigo-700 font-medium"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>{sy.name}</span>
+                    {sy.isCurrent && (
+                      <span className="ml-auto text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">Active</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="hidden md:flex items-center relative">
           <Search className="absolute left-3 w-4 h-4 text-gray-400" />
           <input

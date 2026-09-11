@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import ClassModal from "@/components/modals/class-modal";
+import { useSchoolYear } from "@/components/providers/school-year-provider";
 import type { Class, SchoolYear, PaginatedResponse } from "@/types";
 
 type ClassCard = Class & {
@@ -29,6 +30,7 @@ const ITEMS_PER_PAGE = 20;
 
 export default function ClassesPage() {
   const router = useRouter();
+  const { selectedYear } = useSchoolYear();
   const [classes, setClasses] = useState<ClassCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
@@ -39,27 +41,11 @@ export default function ClassesPage() {
   });
 
   const [search, setSearch] = useState("");
-  const [schoolYearFilter, setSchoolYearFilter] = useState("");
-  const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<Class | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  const fetchSchoolYears = useCallback(async () => {
-    try {
-      const res = await fetch("/api/school-years");
-      const data = await res.json();
-      setSchoolYears(data.data || []);
-    } catch {
-      setSchoolYears([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchSchoolYears();
-  }, [fetchSchoolYears]);
 
   const fetchClasses = useCallback(async () => {
     setLoading(true);
@@ -69,7 +55,7 @@ export default function ClassesPage() {
         limit: String(ITEMS_PER_PAGE),
       });
       if (search) params.set("search", search);
-      if (schoolYearFilter) params.set("schoolYearId", schoolYearFilter);
+      if (selectedYear?.id) params.set("schoolYearId", selectedYear.id);
 
       const res = await fetch(`/api/classes?${params.toString()}`);
       const data = (await res.json()) as PaginatedResponse<ClassCard>;
@@ -80,7 +66,7 @@ export default function ClassesPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, search, schoolYearFilter]);
+  }, [currentPage, search, selectedYear?.id]);
 
   useEffect(() => {
     fetchClasses();
@@ -88,7 +74,7 @@ export default function ClassesPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, schoolYearFilter]);
+  }, [search]);
 
   function handleEdit(e: React.MouseEvent, classe: ClassCard) {
     e.preventDefault();
@@ -167,21 +153,6 @@ export default function ClassesPage() {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <select
-                value={schoolYearFilter}
-                onChange={(e) => setSchoolYearFilter(e.target.value)}
-                className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent appearance-none bg-white"
-              >
-                <option value="">Toutes les années</option>
-                {schoolYears.map((sy) => (
-                  <option key={sy.id} value={sy.id}>
-                    {sy.name}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
         </div>
 
@@ -195,7 +166,7 @@ export default function ClassesPage() {
             <BookOpen className="w-14 h-14 mb-3" />
             <p className="text-sm font-medium">Aucune classe trouvée</p>
             <p className="text-xs mt-1">
-              {search || schoolYearFilter
+              {search
                 ? "Essayez de modifier vos filtres"
                 : "Commencez par ajouter une classe"}
             </p>

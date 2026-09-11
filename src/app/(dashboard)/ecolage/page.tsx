@@ -20,6 +20,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import PaymentModal from "@/components/modals/payment-modal";
+import { useSchoolYear } from "@/components/providers/school-year-provider";
 import type { PaymentType, PaymentMethod, PaginatedResponse } from "@/types";
 
 interface StudentFees {
@@ -106,22 +107,29 @@ function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("fr-FR");
 }
 
-function getMonthOptions() {
+function getMonthOptions(startMonth: number = 10, endMonth: number = 7, year?: number) {
   const months: { value: string; label: string }[] = [];
-  const now = new Date();
+  const sy = year || new Date().getFullYear();
+
+  // Generate months from startMonth to endMonth across the school year
+  let m = startMonth;
   for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const monthYear = m >= startMonth ? sy : sy + 1;
+    const value = `${monthYear}-${String(m).padStart(2, "0")}`;
+    const d = new Date(monthYear, m - 1, 1);
     const label = d.toLocaleDateString("fr-FR", {
       month: "long",
       year: "numeric",
     });
     months.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+    if (m === endMonth) break;
+    m = m >= 12 ? 1 : m + 1;
   }
   return months;
 }
 
 export default function EcolagePage() {
+  const { selectedYear } = useSchoolYear();
   const [data, setData] = useState<StudentFees[]>([]);
   const [stats, setStats] = useState<EcolageStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -135,38 +143,34 @@ export default function EcolagePage() {
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [monthFilter, setMonthFilter] = useState("");
-  const [schoolYearFilter, setSchoolYearFilter] = useState("");
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [monthFilter, setMonthFilter] = useState(currentMonth);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<string>("lastName");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
-  const [schoolYears, setSchoolYears] = useState<{ id: string; name: string; isCurrent: boolean }[]>([]);
   const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
 
   const [selectedStudent, setSelectedStudent] = useState<StudentFees | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentStudentId, setPaymentStudentId] = useState<string>("");
 
-  const months = useRef(getMonthOptions());
+  const months = useRef(getMonthOptions(selectedYear?.startMonth || 10, selectedYear?.endMonth || 7));
 
   const fetchDropdowns = useCallback(async () => {
     try {
-      const [classesRes, yearsRes, typesRes] = await Promise.all([
+      const [classesRes, typesRes] = await Promise.all([
         fetch("/api/classes?limit=100"),
-        fetch("/api/school-years"),
         fetch("/api/paiement-types?limit=100"),
       ]);
       const classesData = await classesRes.json();
-      const yearsData = await yearsRes.json();
       const typesData = await typesRes.json();
       setClasses(classesData.data || []);
-      setSchoolYears(yearsData.data || []);
       setPaymentTypes(typesData.data || []);
     } catch {
       setClasses([]);
-      setSchoolYears([]);
       setPaymentTypes([]);
     }
   }, []);
@@ -175,13 +179,19 @@ export default function EcolagePage() {
     fetchDropdowns();
   }, [fetchDropdowns]);
 
+  useEffect(() => {
+    if (selectedYear) {
+      months.current = getMonthOptions(selectedYear.startMonth || 10, selectedYear.endMonth || 7);
+    }
+  }, [selectedYear]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
       if (classFilter) params.set("classId", classFilter);
-      if (schoolYearFilter) params.set("schoolYearId", schoolYearFilter);
+      if (selectedYear?.id) params.set("schoolYearId", selectedYear.id);
       if (monthFilter) params.set("month", monthFilter);
       if (search) params.set("search", search);
       params.set("page", String(currentPage));
@@ -255,7 +265,7 @@ export default function EcolagePage() {
     classFilter,
     statusFilter,
     monthFilter,
-    schoolYearFilter,
+    selectedYear?.id,
     sortField,
     sortDir,
   ]);
@@ -266,7 +276,7 @@ export default function EcolagePage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, classFilter, statusFilter, monthFilter, schoolYearFilter]);
+  }, [search, classFilter, statusFilter, monthFilter]);
 
   function handleSort(field: string) {
     if (sortField === field) {
@@ -291,11 +301,10 @@ export default function EcolagePage() {
     setClassFilter("");
     setStatusFilter("all");
     setMonthFilter("");
-    setSchoolYearFilter("");
     setCurrentPage(1);
   }
 
-  const hasFilters = search || classFilter || statusFilter !== "all" || monthFilter || schoolYearFilter;
+  const hasFilters = search || classFilter || statusFilter !== "all" || monthFilter;
 
   function handlePayStudent(studentId: string) {
     setPaymentStudentId(studentId);
@@ -481,21 +490,6 @@ export default function EcolagePage() {
                 {months.current.map((m) => (
                   <option key={m.value} value={m.value}>
                     {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <select
-                value={schoolYearFilter}
-                onChange={(e) => setSchoolYearFilter(e.target.value)}
-                className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent appearance-none bg-white"
-              >
-                <option value="">Toutes les années</option>
-                {schoolYears.map((sy) => (
-                  <option key={sy.id} value={sy.id}>
-                    {sy.name}
                   </option>
                 ))}
               </select>

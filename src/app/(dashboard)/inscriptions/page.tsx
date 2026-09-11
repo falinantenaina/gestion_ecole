@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import EnrollmentModal from "@/components/modals/enrollment-modal";
+import { useSchoolYear } from "@/components/providers/school-year-provider";
 import type { Enrollment, Class, SchoolYear, PaginatedResponse } from "@/types";
 
 type EnrollmentRow = Enrollment & {
@@ -41,6 +42,7 @@ const statusStyles: Record<string, string> = {
 };
 
 export default function InscriptionsPage() {
+  const { selectedYear } = useSchoolYear();
   const [enrollments, setEnrollments] = useState<EnrollmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
@@ -53,7 +55,6 @@ export default function InscriptionsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
-  const [schoolYearFilter, setSchoolYearFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   const [classes, setClasses] = useState<Class[]>([]);
@@ -77,17 +78,13 @@ export default function InscriptionsPage() {
 
   const fetchFilters = useCallback(async () => {
     try {
-      const [classesRes, yearsRes] = await Promise.all([
+      const [classesRes] = await Promise.all([
         fetch("/api/classes?limit=100"),
-        fetch("/api/school-years"),
       ]);
       const classesData = await classesRes.json();
-      const yearsData = await yearsRes.json();
       setClasses(classesData.data || []);
-      setSchoolYears(yearsData.data || []);
     } catch {
       setClasses([]);
-      setSchoolYears([]);
     }
   }, []);
 
@@ -105,14 +102,16 @@ export default function InscriptionsPage() {
       if (search) params.set("search", search);
       if (statusFilter) params.set("status", statusFilter);
       if (classFilter) params.set("classId", classFilter);
-      if (schoolYearFilter) params.set("schoolYearId", schoolYearFilter);
+      if (selectedYear?.id) params.set("schoolYearId", selectedYear.id);
 
       const res = await fetch(`/api/inscriptions?${params.toString()}`);
       const data = (await res.json()) as PaginatedResponse<EnrollmentRow>;
       setEnrollments(data.data || []);
       setPagination(data.pagination);
 
-      const allRes = await fetch(`/api/inscriptions?limit=1000`);
+      const allParams = new URLSearchParams();
+      if (selectedYear?.id) allParams.set("schoolYearId", selectedYear.id);
+      const allRes = await fetch(`/api/inscriptions?limit=1000&${allParams.toString()}`);
       const allData = (await allRes.json()) as PaginatedResponse<EnrollmentRow>;
       const all = allData.data || [];
       setSummaryStats({
@@ -125,7 +124,7 @@ export default function InscriptionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, search, statusFilter, classFilter, schoolYearFilter]);
+  }, [currentPage, search, statusFilter, classFilter, selectedYear?.id]);
 
   useEffect(() => {
     fetchEnrollments();
@@ -133,7 +132,7 @@ export default function InscriptionsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilter, classFilter, schoolYearFilter]);
+  }, [search, statusFilter, classFilter]);
 
   async function handleStatusChange(id: string, newStatus: string) {
     setProcessingId(id);
@@ -290,21 +289,6 @@ export default function InscriptionsPage() {
                 ))}
               </select>
             </div>
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <select
-                value={schoolYearFilter}
-                onChange={(e) => setSchoolYearFilter(e.target.value)}
-                className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent appearance-none bg-white"
-              >
-                <option value="">Toutes les années</option>
-                {schoolYears.map((sy) => (
-                  <option key={sy.id} value={sy.id}>
-                    {sy.name}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
         </div>
 
@@ -318,7 +302,7 @@ export default function InscriptionsPage() {
             <FileText className="w-12 h-12 mb-3" />
             <p className="text-sm font-medium">Aucune inscription trouvée</p>
             <p className="text-xs mt-1">
-              {search || statusFilter || classFilter || schoolYearFilter
+              {search || statusFilter || classFilter
                 ? "Essayez de modifier vos filtres"
                 : "Commencez par ajouter une inscription"}
             </p>
