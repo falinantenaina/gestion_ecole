@@ -9,6 +9,8 @@ interface PaymentModalProps {
   onClose: () => void;
   payment?: Payment | null;
   studentId?: string;
+  defaultPaymentTypeId?: string;
+  defaultAmount?: number;
   onSuccess: () => void;
 }
 
@@ -24,9 +26,12 @@ export default function PaymentModal({
   onClose,
   payment,
   studentId,
+  defaultPaymentTypeId,
+  defaultAmount,
   onSuccess,
 }: PaymentModalProps) {
   const isEditing = !!payment;
+  const isQuickPay = !!defaultPaymentTypeId && !!defaultAmount;
 
   const [formData, setFormData] = useState({
     studentId: "",
@@ -107,8 +112,8 @@ export default function PaymentModal({
       setFormData((prev) => ({
         ...prev,
         studentId,
-        paymentTypeId: "",
-        amount: "",
+        paymentTypeId: defaultPaymentTypeId || "",
+        amount: defaultAmount ? String(defaultAmount) : "",
         paymentMethod: "CASH",
         reference: "",
         notes: "",

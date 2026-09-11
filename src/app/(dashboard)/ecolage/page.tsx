@@ -33,6 +33,7 @@ interface StudentFees {
     totalDue: number;
     totalPaid: number;
     remaining: number;
+    monthlyAmount: number | null;
   }[];
   totalDue: number;
   totalPaid: number;
@@ -156,6 +157,8 @@ export default function EcolagePage() {
   const [selectedStudent, setSelectedStudent] = useState<StudentFees | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentStudentId, setPaymentStudentId] = useState<string>("");
+  const [defaultPaymentTypeId, setDefaultPaymentTypeId] = useState<string>("");
+  const [defaultAmount, setDefaultAmount] = useState<number>(0);
 
   const months = useRef(getMonthOptions(selectedYear?.startMonth || 10, selectedYear?.endMonth || 7));
 
@@ -308,6 +311,20 @@ export default function EcolagePage() {
 
   function handlePayStudent(studentId: string) {
     setPaymentStudentId(studentId);
+    // Find the student's data to get scolarité fee type and monthly amount
+    const studentData = data.find((sf) => sf.student.id === studentId);
+    if (studentData) {
+      const scolarite = (studentData.paymentTypeBreakdown || []).find(
+        (ptb: any) => ptb.name?.includes("Scolarité")
+      );
+      if (scolarite) {
+        setDefaultPaymentTypeId(scolarite.paymentTypeId);
+        setDefaultAmount(scolarite.monthlyAmount || 0);
+      } else {
+        setDefaultPaymentTypeId("");
+        setDefaultAmount(0);
+      }
+    }
     setPaymentModalOpen(true);
   }
 
@@ -540,21 +557,17 @@ export default function EcolagePage() {
                 <tr className="text-left text-gray-500 border-b border-gray-100 bg-gray-50/50">
                   {[
                     { field: "lastName", label: "Élève" },
-                    { field: "matricule", label: "Matricule" },
                     { field: "className", label: "Classe" },
-                    { field: "totalDue", label: "Frais Total" },
-                    { field: "totalPaid", label: "Montant Payé" },
-                    { field: "remaining", label: "Reste à Payer" },
+                    { field: "monthlyDue", label: "Frais du Mois" },
+                    { field: "monthlyPaid", label: "Payé ce Mois" },
+                    { field: "monthlyRemaining", label: "Reste" },
                     { field: "status", label: "Statut" },
-                    { field: "lastPaymentDate", label: "Dernier Paiement" },
                   ].map(({ field, label }) => (
                     <th
                       key={field}
                       onClick={() => handleSort(field)}
                       className={`px-4 py-3 font-medium cursor-pointer select-none hover:text-gray-900 transition-colors ${
-                        ["matricule", "className", "lastPaymentDate"].includes(field)
-                          ? "hidden md:table-cell"
-                          : ""
+                        ["className"].includes(field) ? "hidden md:table-cell" : ""
                       }`}
                     >
                       <span className="flex items-center gap-1">
@@ -567,65 +580,77 @@ export default function EcolagePage() {
                 </tr>
               </thead>
               <tbody>
-                {data.map((sf) => (
-                  <tr
-                    key={sf.student.id}
-                    className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors cursor-pointer"
-                    onClick={() => setSelectedStudent(selectedStudent?.student.id === sf.student.id ? null : sf)}
-                  >
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      {sf.student.firstName} {sf.student.lastName}
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
-                        {sf.student.matricule}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
-                      {sf.class.name}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      {formatAmount(sf.totalDue)}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-green-600">
-                      {formatAmount(sf.totalPaid)}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-red-600">
-                      {formatAmount(sf.remaining)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusStyles[sf.status]}`}>
-                        {statusLabels[sf.status]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
-                      {sf.lastPaymentDate ? formatDate(sf.lastPaymentDate) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                        {sf.status !== "paid" && (
+                {data.map((sf) => {
+                  // Calculate monthly amounts from paymentTypeBreakdown
+                  const scolarite = (sf.paymentTypeBreakdown || []).find(
+                    (ptb: any) => ptb.name?.includes("Scolarité")
+                  );
+                  const monthlyDue = scolarite?.monthlyAmount || 0;
+                  // Distribute totalPaid chronologically to find monthly paid
+                  const numMonths = 10;
+                  const monthlyPaid = monthlyDue > 0 ? Math.min(monthlyDue, Math.max(0, sf.totalPaid - (Math.floor(sf.totalPaid / monthlyDue) * monthlyDue > sf.totalPaid ? 0 : 0))) : sf.totalPaid;
+                  // Simple: if totalPaid >= monthlyDue * monthIndex, this month is paid
+                  const monthIdx = monthFilter ? (() => {
+                    const m = parseInt(monthFilter.split("-")[1]);
+                    const sm = selectedYear?.startMonth || 10;
+                    return ((m - sm + 12) % 12);
+                  })() : 0;
+                  const expectedPaidByMonth = monthlyDue * (monthIdx + 1);
+                  const monthPaid = sf.totalPaid >= expectedPaidByMonth ? monthlyDue : Math.max(0, sf.totalPaid - (monthlyDue * monthIdx));
+                  const monthRemaining = Math.max(0, monthlyDue - monthPaid);
+
+                  return (
+                    <tr
+                      key={sf.student.id}
+                      className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                      onClick={() => setSelectedStudent(selectedStudent?.student.id === sf.student.id ? null : sf)}
+                    >
+                      <td className="px-4 py-3 font-medium text-gray-900">
+                        {sf.student.firstName} {sf.student.lastName}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
+                        {sf.class.name}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-900">
+                        {formatAmount(monthlyDue)}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-green-600">
+                        {formatAmount(monthPaid)}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-red-600">
+                        {formatAmount(monthRemaining)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusStyles[sf.status]}`}>
+                          {statusLabels[sf.status]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          {sf.status !== "paid" && (
+                            <button
+                              onClick={() => handlePayStudent(sf.student.id)}
+                              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-700 bg-green-100 rounded-lg hover:bg-green-200 transition-colors"
+                              title="Enregistrer un paiement"
+                            >
+                              <CreditCard className="w-3 h-3" />
+                              Payer
+                            </button>
+                          )}
                           <button
-                            onClick={() => handlePayStudent(sf.student.id)}
-                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-700 bg-green-100 rounded-lg hover:bg-green-200 transition-colors"
-                            title="Enregistrer un paiement"
+                            onClick={() =>
+                              setSelectedStudent(selectedStudent?.student.id === sf.student.id ? null : sf)
+                            }
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            title="Voir détails"
                           >
-                            <CreditCard className="w-3 h-3" />
-                            Payer
+                            <Eye className="w-4 h-4" />
                           </button>
-                        )}
-                        <button
-                          onClick={() =>
-                            setSelectedStudent(selectedStudent?.student.id === sf.student.id ? null : sf)
-                          }
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                          title="Voir détails"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -847,8 +872,12 @@ export default function EcolagePage() {
         onClose={() => {
           setPaymentModalOpen(false);
           setPaymentStudentId("");
+          setDefaultPaymentTypeId("");
+          setDefaultAmount(0);
         }}
         studentId={paymentStudentId || undefined}
+        defaultPaymentTypeId={defaultPaymentTypeId || undefined}
+        defaultAmount={defaultAmount || undefined}
         onSuccess={fetchData}
       />
     </div>
