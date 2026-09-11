@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import bcrypt from "bcryptjs";
 import {
   getSessionRole,
   requireRole,
@@ -96,8 +95,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      email,
-      password,
       firstName,
       lastName,
       dateOfBirth,
@@ -114,17 +111,9 @@ export async function POST(request: NextRequest) {
       parentRelation,
     } = body;
 
-    if (!email || !password || !firstName || !lastName || !dateOfBirth || !gender) {
+    if (!firstName || !lastName || !dateOfBirth || !gender) {
       return NextResponse.json(
-        { error: "Les champs email, mot de passe, nom, prénom, date de naissance et genre sont requis" },
-        { status: 400 }
-      );
-    }
-
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "Un utilisateur avec cet email existe déjà" },
+        { error: "Les champs nom, prénom, date de naissance et genre sont requis" },
         { status: 400 }
       );
     }
@@ -138,46 +127,27 @@ export async function POST(request: NextRequest) {
       : 1;
     const matricule = `ELV-${currentYear}-${String(nextNumber).padStart(4, "0")}`;
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          role: "STUDENT",
-          firstName,
-          lastName,
-          phone,
-        },
-      });
-
-      const student = await tx.student.create({
-        data: {
-          userId: user.id,
-          matricule,
-          firstName,
-          lastName,
-          dateOfBirth: new Date(dateOfBirth),
-          gender,
-          address,
-          phone,
-          email,
-          placeOfBirth,
-          nationality,
-          bloodGroup,
-          medicalNotes,
-          parentName,
-          parentPhone,
-          parentEmail,
-          parentRelation,
-        },
-      });
-
-      return student;
+    const student = await prisma.student.create({
+      data: {
+        matricule,
+        firstName,
+        lastName,
+        dateOfBirth: new Date(dateOfBirth),
+        gender,
+        address,
+        phone,
+        placeOfBirth,
+        nationality,
+        bloodGroup,
+        medicalNotes,
+        parentName,
+        parentPhone,
+        parentEmail,
+        parentRelation,
+      } as any,
     });
 
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json(student, { status: 201 });
   } catch (error) {
     if (error instanceof NextResponse) return error;
     console.error("Erreur lors de la création de l'élève:", error);

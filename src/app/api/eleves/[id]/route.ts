@@ -116,16 +116,16 @@ export async function PUT(
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      if (email && email !== existingStudent.user.email) {
+      if (existingStudent.userId && email && email !== existingStudent.user?.email) {
         const emailTaken = await tx.user.findUnique({ where: { email } });
         if (emailTaken) {
           throw new Error("Cet email est déjà utilisé");
         }
       }
 
-      if (firstName || lastName || email || phone) {
+      if (existingStudent.userId && (firstName || lastName || email || phone)) {
         await tx.user.update({
-          where: { id: existingStudent.userId },
+          where: { id: existingStudent.userId! },
           data: {
             ...(firstName && { firstName }),
             ...(lastName && { lastName }),
@@ -191,10 +191,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Élève non trouvé" }, { status: 404 });
     }
 
-    await prisma.user.update({
-      where: { id: student.userId },
-      data: { isActive: false },
-    });
+    if (student.userId) {
+      await prisma.user.update({
+        where: { id: student.userId },
+        data: { isActive: false },
+      });
+    }
 
     return NextResponse.json({ message: "Élève désactivé avec succès" });
   } catch (error) {

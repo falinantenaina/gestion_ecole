@@ -65,7 +65,7 @@ export interface User {
 
 export interface Student {
   id: string;
-  userId: string;
+  userId?: string | null;
   user?: User;
   matricule: string;
   firstName: string;
