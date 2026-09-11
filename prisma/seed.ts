@@ -41,38 +41,12 @@ async function main() {
     },
   });
 
-  // Create secretary
-  await prisma.user.create({
-    data: {
-      email: "secretaire@ecole.fr",
-      password,
-      role: Role.SECRETARY,
-      firstName: "Rasoa",
-      lastName: "Andria",
-      isActive: true,
-    },
-  });
-
-  // Create comptable
-  await prisma.user.create({
-    data: {
-      email: "comptable@ecole.fr",
-      password,
-      role: Role.ACCOUNTANT,
-      firstName: "Hery",
-      lastName: "Ramananarivo",
-      isActive: true,
-    },
-  });
-
-  // Create school year (Oct 2026 - July 2027)
+  // Create school year
   const schoolYear = await prisma.schoolYear.create({
     data: {
       name: "2026-2027",
-      startDate: new Date("2026-10-01"),
-      endDate: new Date("2027-07-31"),
-      startMonth: 10, // Octobre
-      endMonth: 7,    // Juillet
+      startDate: new Date("2026-09-01"),
+      endDate: new Date("2027-06-30"),
       isCurrent: true,
     },
   });
@@ -110,14 +84,14 @@ async function main() {
 
   // Create subjects
   const subjects = await Promise.all([
-    prisma.subject.create({ data: { name: "Mathématiques", code: "MATH", description: "Mathématiques" } }),
-    prisma.subject.create({ data: { name: "Français", code: "FRAN", description: "Français" } }),
-    prisma.subject.create({ data: { name: "Anglais", code: "ANGL", description: "Anglais" } }),
-    prisma.subject.create({ data: { name: "Histoire-Géographie", code: "HIST", description: "Histoire-Géographie" } }),
-    prisma.subject.create({ data: { name: "Physique-Chimie", code: "PHYC", description: "Physique-Chimie" } }),
-    prisma.subject.create({ data: { name: "SVT", code: "SVT", description: "Sciences de la Vie et de la Terre" } }),
-    prisma.subject.create({ data: { name: "Informatique", code: "INFO", description: "Informatique" } }),
-    prisma.subject.create({ data: { name: "EPS", code: "EPS", description: "Éducation Physique et Sportive" } }),
+    prisma.subject.create({ data: { name: "Mathématiques", code: "MATH", coefficient: 4, description: "Mathématiques" } }),
+    prisma.subject.create({ data: { name: "Français", code: "FRAN", coefficient: 3, description: "Français" } }),
+    prisma.subject.create({ data: { name: "Anglais", code: "ANGL", coefficient: 2, description: "Anglais" } }),
+    prisma.subject.create({ data: { name: "Histoire-Géographie", code: "HIST", coefficient: 2, description: "Histoire-Géographie" } }),
+    prisma.subject.create({ data: { name: "Physique-Chimie", code: "PHYC", coefficient: 3, description: "Physique-Chimie" } }),
+    prisma.subject.create({ data: { name: "SVT", code: "SVT", coefficient: 2, description: "Sciences de la Vie et de la Terre" } }),
+    prisma.subject.create({ data: { name: "Informatique", code: "INFO", coefficient: 2, description: "Informatique" } }),
+    prisma.subject.create({ data: { name: "EPS", code: "EPS", coefficient: 1, description: "Éducation Physique et Sportive" } }),
   ]);
 
   // Create classes
@@ -183,24 +157,11 @@ async function main() {
     teachers.push(teacher);
   }
 
-  // Assign subjects to classes with coefficients per class level
-  // Coefficients vary: Collège < Lycée, and by subject importance
-  const coefficientMap: Record<string, Record<string, number>> = {
-    // Collège: coefficients généralement plus bas
-    "Collège": { MATH: 4, FRAN: 4, ANGL: 3, HIST: 3, PHYC: 2, SVT: 2, INFO: 1, EPS: 1 },
-    // Lycée: coefficients plus élevés pour les matières principales
-    "Lycée":   { MATH: 7, FRAN: 5, ANGL: 4, HIST: 3, PHYC: 5, SVT: 4, INFO: 3, EPS: 1 },
-  };
-
+  // Assign subjects to classes
   for (const cls of classes) {
-    const coeffs = coefficientMap[cls.level] || coefficientMap["Collège"];
     for (const sub of subjects) {
       await prisma.classSubject.create({
-        data: {
-          classId: cls.id,
-          subjectId: sub.id,
-          coefficient: coeffs[sub.code] || 1,
-        },
+        data: { classId: cls.id, subjectId: sub.id },
       });
     }
   }
@@ -257,7 +218,7 @@ async function main() {
     await prisma.enrollment.create({
       data: {
         studentId: student.id,
-        classId: classes[sd.classIndex].id,
+        classId: classes[sd.classIndex].id,/
         schoolYearId: schoolYear.id,
         status: EnrollmentStatus.VALIDATED,
       },
@@ -269,76 +230,22 @@ async function main() {
   // Create payment types
   const paymentTypes = await Promise.all([
     prisma.paymentType.create({ data: { name: "Frais de Scolarité", description: "Frais annuel de scolarité", amount: 50000 } }),
-    prisma.paymentType.create({ data: { name: "Frais d'Inscription", description: "Frais d'inscription annuelle", amount: 15000 } }),
+    prisma.paymentType.create({ data: { name: "Frais d'Inscription", description: "Frais d'inscription annuelle", amount: 10000 } }),
+    prisma.paymentType.create({ data: { name: "Frais de Transport", description: "Transport scolaire", amount: 15000 } }),
+    prisma.paymentType.create({ data: { name: "Frais de Cantine", description: "Restauration scolaire", amount: 20000 } }),
+    prisma.paymentType.create({ data: { name: "Frais de Bibliothèque", description: "Accès à la bibliothèque", amount: 5000 } }),
   ]);
 
-  // Create class fees per class (Scolarité = monthly amount, Inscription = total)
-  const feeConfigs = [
-    // Collège classes (0-3)
-    { classIndex: 0, fees: [
-      { typeIndex: 0, amount: 4500 }, // Scolarité 4500/mois × 10 = 45 000/an
-      { typeIndex: 1, amount: 15000 }, // Inscription 15 000 total
-    ]},
-    { classIndex: 1, fees: [
-      { typeIndex: 0, amount: 4800 }, // 48 000/an
-      { typeIndex: 1, amount: 15000 },
-    ]},
-    { classIndex: 2, fees: [
-      { typeIndex: 0, amount: 5000 }, // 50 000/an
-      { typeIndex: 1, amount: 18000 },
-    ]},
-    { classIndex: 3, fees: [
-      { typeIndex: 0, amount: 5200 }, // 52 000/an
-      { typeIndex: 1, amount: 18000 },
-    ]},
-    // Lycée classes (4-6)
-    { classIndex: 4, fees: [
-      { typeIndex: 0, amount: 6000 }, // 60 000/an
-      { typeIndex: 1, amount: 20000 },
-    ]},
-    { classIndex: 5, fees: [
-      { typeIndex: 0, amount: 6500 }, // 65 000/an
-      { typeIndex: 1, amount: 22000 },
-    ]},
-    { classIndex: 6, fees: [
-      { typeIndex: 0, amount: 7000 }, // 70 000/an
-      { typeIndex: 1, amount: 25000 },
-    ]},
-  ];
-
-  for (const config of feeConfigs) {
-    for (const fee of config.fees) {
-      await prisma.classFee.create({
-        data: {
-          classId: classes[config.classIndex].id,
-          paymentTypeId: paymentTypes[fee.typeIndex].id,
-          amount: fee.amount,
-          schoolYearId: schoolYear.id,
-        },
-      });
-    }
-  }
-
-  // Create some payments (using class fee amounts)
+  // Create some payments
   const paymentMethods = ["CASH", "BANK_TRANSFER", "MOBILE_MONEY", "CREDIT_CARD"] as const;
   for (let i = 0; i < 8; i++) {
     const student = students[i % students.length];
     const pt = paymentTypes[i % paymentTypes.length];
-    // Get the class fee amount for this student's class
-    const enrollment = await prisma.enrollment.findFirst({
-      where: { studentId: student.id, status: "VALIDATED" },
-    });
-    const classFee = enrollment
-      ? await prisma.classFee.findFirst({
-          where: { classId: enrollment.classId, paymentTypeId: pt.id, schoolYearId: schoolYear.id },
-        })
-      : null;
-    const amount = classFee?.amount || pt.amount;
     await prisma.payment.create({
       data: {
         studentId: student.id,
         paymentTypeId: pt.id,
-        amount,
+        amount: pt.amount,
         paymentMethod: paymentMethods[i % paymentMethods.length],
         paymentDate: new Date(2026, 8, Math.floor(Math.random() * 28) + 1),
         notes: `Paiement ${pt.name}`,
@@ -352,12 +259,6 @@ async function main() {
     for (const sub of subjects.slice(0, 5)) {
       for (const evalType of evalTypes) {
         const score = Math.floor(Math.random() * 15) + 5;
-        const studentClassIndex = studentData[students.indexOf(student)]?.classIndex ?? 0;
-        const cls = classes[studentClassIndex];
-        // Look up coefficient from ClassSubject
-        const classSubject = await prisma.classSubject.findUnique({
-          where: { classId_subjectId: { classId: cls.id, subjectId: sub.id } },
-        });
         await prisma.grade.create({
           data: {
             studentId: student.id,
@@ -365,11 +266,11 @@ async function main() {
             teacherId: teachers[0].id,
             schoolYearId: schoolYear.id,
             termId: term1.id,
-            classId: cls.id,
+            classId: classes[studentData[students.indexOf(student)]?.classIndex ?? 0].id,
             evaluationType: evalType as any,
             score,
             maxScore: 20,
-            coefficient: classSubject?.coefficient || 1,
+            coefficient: sub.coefficient,
             evaluationName: `${evalType} ${sub.name}`,
           },
         });
